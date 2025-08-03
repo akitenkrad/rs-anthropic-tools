@@ -1,0 +1,42 @@
+[config]
+default_to_workspace = false
+
+[tasks.set-env]
+env_files = [".env"]
+
+# ============ BUILD TASKS ============
+[tasks.build-no-cache]
+extend = "set-env"
+description = "Build the project."
+script = [
+  "docker compose build --pull --no-cache --progress=plain && docker compose run --rm instance cargo build --release",
+]
+
+[tasks.compose-build]
+extend = "set-env"
+description = "Build the project."
+script = [
+  "docker compose build --progress=plain && docker compose run --rm instance cargo build --release",
+]
+
+# ============ LINT TASKS ============
+[tasks.format-all]
+dependencies = ["sort-cargo-toml", "clippy", "reformat"]
+description = "Format all code in the project."
+
+[tasks.sort-cargo-toml]
+description = "Sort the Cargo.toml files in the project."
+install_crate = "taplo-cli"
+script = "taplo fmt --option reorder_keys=true"
+
+[tasks.reformat]
+description = "Reformat the code using rustfmt."
+script = "cargo fmt -- --emit files"
+
+# ============ TEST TASKS ============
+[tasks.nextest]
+extend = "set-env"
+dependencies = ["compose-build"]
+description = "Run all tests in the project."
+install_crate = "cargo-nextest"
+script = "cargo nextest run --workspace --status-level all --test-threads=1"

@@ -1,0 +1,11 @@
+services:
+  instance:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    user: root
+    volumes:
+      - ./:/workplace
+    working_dir: /workplace
+    env_file:
+      - .env

@@ -1,0 +1,12 @@
+[package]
+edition.workspace = true
+license.workspace = true
+name = "shared"
+publish.workspace = true
+version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+indicatif.workspace = true
+strum.workspace = true
+tracing-subscriber.workspace = true
