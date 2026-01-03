@@ -5,19 +5,10 @@ default_to_workspace = false
 env_files = [".env"]
 
 # ============ BUILD TASKS ============
-[tasks.build-no-cache]
+[tasks.build-tools]
 extend = "set-env"
 description = "Build the project."
-script = [
-  "docker compose build --pull --no-cache --progress=plain && docker compose run --rm instance cargo build --release",
-]
-
-[tasks.compose-build]
-extend = "set-env"
-description = "Build the project."
-script = [
-  "docker compose build --progress=plain && docker compose run --rm instance cargo build --release",
-]
+script = ["cargo build --release"]
 
 # ============ LINT TASKS ============
 [tasks.format-all]
@@ -33,10 +24,32 @@ script = "taplo fmt --option reorder_keys=true"
 description = "Reformat the code using rustfmt."
 script = "cargo fmt -- --emit files"
 
+[tasks.clippy]
+description = "Run clippy linter."
+script = "cargo clippy --all-targets --all-features -- -D warnings"
+
 # ============ TEST TASKS ============
 [tasks.nextest]
 extend = "set-env"
-dependencies = ["compose-build"]
+dependencies = ["build-tools"]
 description = "Run all tests in the project."
 install_crate = "cargo-nextest"
-script = "cargo nextest run --workspace --status-level all --test-threads=1"
+script = "cargo nextest run --status-level all --test-threads=1"
+
+[tasks.test-api]
+extend = "set-env"
+dependencies = ["build-tools"]
+description = "Run API integration tests (requires ANTHROPIC_API_KEY)."
+install_crate = "cargo-nextest"
+script = "cargo nextest run --test api_integration --run-ignored ignored-only --status-level all"
+
+[tasks.test-all]
+extend = "set-env"
+dependencies = ["build-tools"]
+description = "Run all tests including API integration tests."
+install_crate = "cargo-nextest"
+script = [
+    "cargo nextest run --status-level all --test-threads=1",
+    "cargo nextest run --test api_integration --run-ignored ignored-only --status-level all",
+    "cargo test --doc"
+]

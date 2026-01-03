@@ -23,3 +23,5 @@ Cargo.lock
 
 # Exclude .env files
 .env
+/.claude
+/thoughts
