@@ -12,8 +12,7 @@
 //! - [`Model::Sonnet4`] - `claude-sonnet-4-20250514`
 //!
 //! ## Claude 3.5 Family
-//! - [`Model::Sonnet35`] - `claude-3-5-sonnet-latest`
-//! - [`Model::Haiku35`] - `claude-3-5-haiku-latest`
+//! - [`Model::Haiku35`] - `claude-3-5-haiku-20241022`
 //!
 //! ## Claude 3 Family
 //! - [`Model::Opus3`] - `claude-3-opus-20240229`
@@ -58,9 +57,7 @@ pub enum Model {
     Sonnet4,
 
     // Claude 3.5 Family
-    /// claude-3-5-sonnet-latest
-    Sonnet35,
-    /// claude-3-5-haiku-latest
+    /// claude-3-5-haiku-20241022
     Haiku35,
 
     // Claude 3 Family
@@ -83,8 +80,7 @@ impl Model {
             Model::Opus45 => "claude-opus-4-5-20251101",
             Model::Opus4 => "claude-opus-4-20250514",
             Model::Sonnet4 => "claude-sonnet-4-20250514",
-            Model::Sonnet35 => "claude-3-5-sonnet-latest",
-            Model::Haiku35 => "claude-3-5-haiku-latest",
+            Model::Haiku35 => "claude-3-5-haiku-20241022",
             Model::Opus3 => "claude-3-opus-20240229",
             Model::Sonnet3 => "claude-3-sonnet-20240229",
             Model::Haiku3 => "claude-3-haiku-20240307",
@@ -94,10 +90,7 @@ impl Model {
 
     /// Check if this model supports extended thinking
     pub fn supports_thinking(&self) -> bool {
-        matches!(
-            self,
-            Model::Opus45 | Model::Opus4 | Model::Sonnet4 | Model::Sonnet35
-        )
+        matches!(self, Model::Opus45 | Model::Opus4 | Model::Sonnet4)
     }
 
     /// Check if this is a known model (not Other)
@@ -119,8 +112,7 @@ impl From<&str> for Model {
             "claude-opus-4-5-20251101" => Model::Opus45,
             "claude-opus-4-20250514" => Model::Opus4,
             "claude-sonnet-4-20250514" => Model::Sonnet4,
-            "claude-3-5-sonnet-latest" => Model::Sonnet35,
-            "claude-3-5-haiku-latest" => Model::Haiku35,
+            "claude-3-5-haiku-20241022" => Model::Haiku35,
             "claude-3-opus-20240229" => Model::Opus3,
             "claude-3-sonnet-20240229" => Model::Sonnet3,
             "claude-3-haiku-20240307" => Model::Haiku3,
@@ -164,8 +156,7 @@ mod tests {
         assert_eq!(Model::Opus45.as_str(), "claude-opus-4-5-20251101");
         assert_eq!(Model::Opus4.as_str(), "claude-opus-4-20250514");
         assert_eq!(Model::Sonnet4.as_str(), "claude-sonnet-4-20250514");
-        assert_eq!(Model::Sonnet35.as_str(), "claude-3-5-sonnet-latest");
-        assert_eq!(Model::Haiku35.as_str(), "claude-3-5-haiku-latest");
+        assert_eq!(Model::Haiku35.as_str(), "claude-3-5-haiku-20241022");
         assert_eq!(Model::Opus3.as_str(), "claude-3-opus-20240229");
         assert_eq!(Model::Sonnet3.as_str(), "claude-3-sonnet-20240229");
         assert_eq!(Model::Haiku3.as_str(), "claude-3-haiku-20240307");
@@ -228,7 +219,6 @@ mod tests {
         assert!(Model::Opus45.supports_thinking());
         assert!(Model::Opus4.supports_thinking());
         assert!(Model::Sonnet4.supports_thinking());
-        assert!(Model::Sonnet35.supports_thinking());
 
         // Models that don't support thinking
         assert!(!Model::Haiku35.supports_thinking());

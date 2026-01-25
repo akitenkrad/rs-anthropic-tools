@@ -579,24 +579,6 @@ async fn test_model_sonnet4() {
     println!("[Sonnet4] Response: {}", response.get_text());
 }
 
-/// Test Sonnet 3.5 model
-#[tokio::test]
-#[ignore]
-async fn test_model_sonnet35() {
-    require_api_key();
-
-    let mut client = Messages::new();
-    client
-        .model(Model::Sonnet35)
-        .max_tokens(50)
-        .user("Say 'Hello from Sonnet 3.5'");
-
-    let response = client.post().await.expect("Sonnet 3.5 API call failed");
-    assert!(!response.get_text().is_empty());
-    assert_eq!(response.model, Model::Sonnet35);
-    println!("[Sonnet35] Response: {}", response.get_text());
-}
-
 /// Test Haiku 3.5 model
 #[tokio::test]
 #[ignore]
