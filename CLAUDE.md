@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A Rust library (`anthropic-tools`) for interacting with the Anthropic API. Provides a builder-pattern API client for Claude models with support for tool calling, vision/multimodal, prompt caching, and SSE streaming.
+A Rust library (`anthropic-tools`) for interacting with the Anthropic API. Provides a builder-pattern API client for Claude models with support for tool calling, vision/multimodal, prompt caching, extended thinking, and SSE streaming.
 
 ## Build & Test Commands
 
@@ -47,9 +47,10 @@ cargo doc --open
 
 - **`messages/`** - Messages API implementation
   - `request/mod.rs` - `Messages` client with builder pattern
-  - `request/body.rs` - Request body structure and validation
+  - `request/body.rs` - Request body structure, `ThinkingConfig`, and validation
   - `request/content.rs` - `ContentBlock` enum (text, image, tool_use, tool_result, thinking, document)
   - `request/message.rs` - `Message` and `SystemPrompt` types
+  - `request/model.rs` - `Model` enum for type-safe model selection
   - `response.rs` - `Response` struct with helper methods
   - `streaming.rs` - SSE event types and `StreamAccumulator`
 
@@ -58,14 +59,38 @@ cargo doc --open
 1. **Builder Pattern**: The `Messages` client uses method chaining:
    ```rust
    let mut client = Messages::new();
+   // Using Model enum (recommended)
+   client.model(Model::Sonnet4).max_tokens(1024).user("Hello");
+   // Or using string (backward compatible)
    client.model("claude-sonnet-4-20250514").max_tokens(1024).user("Hello");
    ```
 
-2. **Tagged Union Serialization**: `ContentBlock` uses `#[serde(tag = "type")]` for Anthropic API compliance.
+   With extended thinking:
+   ```rust
+   client.model(Model::Sonnet4).max_tokens(16000).thinking(10000).user("Complex problem");
+   ```
 
-3. **Prelude Module**: Import `anthropic_tools::prelude::*` for all commonly used types.
+2. **Model Enum**: Type-safe model selection with `Model` enum:
+   - `Model::Opus4`, `Model::Sonnet4` - Claude 4 family
+   - `Model::Sonnet35`, `Model::Haiku35` - Claude 3.5 family
+   - `Model::Opus3`, `Model::Sonnet3`, `Model::Haiku3` - Claude 3 family
+   - `Model::Other(String)` - Custom/future models
+   - Default: `Model::Sonnet4`
+   - Helper: `model.supports_thinking()` checks extended thinking capability
+
+3. **Tagged Union Serialization**: `ContentBlock` uses `#[serde(tag = "type")]` for Anthropic API compliance.
+
+4. **Prelude Module**: Import `anthropic_tools::prelude::*` for all commonly used types.
 
 ## Environment
 
-- Requires `ANTHROPIC_API_KEY` environment variable for API calls
-- Uses `.env` file (loaded by cargo-make tasks)
+- Requires `ANTHROPIC_API_KEY` for API calls
+- Supports both environment variable and `.env` file:
+  ```bash
+  # Option 1: Environment variable
+  export ANTHROPIC_API_KEY="sk-ant-..."
+
+  # Option 2: .env file in project root
+  echo 'ANTHROPIC_API_KEY=sk-ant-...' > .env
+  ```
+- Priority: Environment variable > `.env` file > `with_api_key()`

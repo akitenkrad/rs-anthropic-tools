@@ -8,7 +8,22 @@
 //! - Tool/Function calling support
 //! - Vision/Multimodal support
 //! - Prompt caching support
+//! - Extended thinking support
 //! - Streaming support (planned)
+//!
+//! ## Configuration
+//!
+//! Set the API key via environment variable or `.env` file:
+//!
+//! ```bash
+//! # Environment variable
+//! export ANTHROPIC_API_KEY="sk-ant-..."
+//!
+//! # Or create .env file in project root
+//! echo 'ANTHROPIC_API_KEY=sk-ant-...' > .env
+//! ```
+//!
+//! Priority: Environment variable > `.env` file > [`Messages::with_api_key()`]
 //!
 //! ## Example
 //!
@@ -46,20 +61,19 @@ pub mod prelude {
 
     // Messages API
     pub use crate::messages::request::{
-        body::{Body, Metadata, ToolChoice},
+        Messages,
+        body::{Body, Metadata, ThinkingConfig, ToolChoice},
         content::{ContentBlock, DocumentSource, ImageSource, MediaType},
         message::{Message, SystemBlock, SystemPrompt},
+        model::Model,
         role::Role,
-        Messages,
     };
 
     // Response types
     pub use crate::messages::response::{Response, StopReason};
 
     // Streaming types
-    pub use crate::messages::streaming::{
-        Delta, MessageDelta, StreamAccumulator, StreamEvent,
-    };
+    pub use crate::messages::streaming::{Delta, MessageDelta, StreamAccumulator, StreamEvent};
 }
 
 // Re-export main types at crate level
@@ -75,15 +89,27 @@ mod tests {
     fn test_messages_builder() {
         let mut client = Messages::with_api_key("test_key");
         client
-            .model("claude-sonnet-4-20250514")
+            .model(Model::Sonnet4)
             .max_tokens(1024)
             .system("You are a helpful assistant.")
             .user("Hello!");
 
         let body = client.body();
-        assert_eq!(body.model, "claude-sonnet-4-20250514");
+        assert_eq!(body.model, Model::Sonnet4);
         assert_eq!(body.max_tokens, 1024);
         assert_eq!(body.messages.len(), 1);
+    }
+
+    #[test]
+    fn test_messages_builder_with_string_model() {
+        let mut client = Messages::with_api_key("test_key");
+        client
+            .model("claude-opus-4-20250514") // string still works
+            .max_tokens(2048)
+            .user("Test");
+
+        let body = client.body();
+        assert_eq!(body.model, Model::Opus4);
     }
 
     #[test]

@@ -45,6 +45,7 @@
 
 use crate::common::Usage;
 use crate::messages::request::content::ContentBlock;
+use crate::messages::request::model::Model;
 use crate::messages::request::role::Role;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
@@ -66,7 +67,7 @@ pub struct Response {
     pub content: Vec<ContentBlock>,
 
     /// Model that generated the response
-    pub model: String,
+    pub model: Model,
 
     /// Reason the model stopped generating
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -144,10 +145,7 @@ impl Response {
     /// Get tool use by ID
     pub fn get_tool_use_by_id(&self, id: &str) -> Option<&ContentBlock> {
         self.content.iter().find(|block| match block {
-            ContentBlock::ToolUse {
-                id: tool_id,
-                ..
-            } => tool_id == id,
+            ContentBlock::ToolUse { id: tool_id, .. } => tool_id == id,
             _ => false,
         })
     }
@@ -201,7 +199,7 @@ mod tests {
                 text: "Hello, world!".to_string(),
                 cache_control: None,
             }],
-            model: "claude-sonnet-4-20250514".to_string(),
+            model: Model::Sonnet4,
             stop_reason: Some(StopReason::EndTurn),
             stop_sequence: None,
             usage: Usage::new(10, 5),
@@ -239,7 +237,7 @@ mod tests {
                     input: serde_json::json!({"query": "test"}),
                 },
             ],
-            model: "claude-sonnet-4-20250514".to_string(),
+            model: Model::Sonnet4,
             stop_reason: Some(StopReason::ToolUse),
             stop_sequence: None,
             usage: Usage::new(20, 15),
@@ -273,7 +271,30 @@ mod tests {
         let response: Response = serde_json::from_str(json).unwrap();
         assert_eq!(response.id, "msg_01XYZ");
         assert_eq!(response.get_text(), "Hello!");
+        assert_eq!(response.model, Model::Sonnet4);
         assert_eq!(response.stop_reason, Some(StopReason::EndTurn));
+    }
+
+    #[test]
+    fn test_deserialize_response_unknown_model() {
+        let json = r#"{
+            "id": "msg_01XYZ",
+            "type": "message",
+            "role": "assistant",
+            "content": [],
+            "model": "claude-future-model-2026",
+            "stop_reason": "end_turn",
+            "usage": {
+                "input_tokens": 10,
+                "output_tokens": 5
+            }
+        }"#;
+
+        let response: Response = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            response.model,
+            Model::Other("claude-future-model-2026".to_string())
+        );
     }
 
     #[test]

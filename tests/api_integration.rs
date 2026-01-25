@@ -1,6 +1,6 @@
 //! Integration tests for the Anthropic API.
 //!
-//! These tests require a valid ANTHROPIC_API_KEY environment variable.
+//! These tests require a valid ANTHROPIC_API_KEY environment variable or `.env` file.
 //! Run with: `cargo test --test api_integration --ignored`
 //!
 //! Note: These tests make actual API calls and will consume tokens.
@@ -9,9 +9,14 @@ use anthropic_tools::prelude::*;
 
 /// Helper to ensure API key is set, panics if not
 fn require_api_key() {
+    // Load .env file if present
+    let _ = dotenvy::dotenv();
+
     match std::env::var("ANTHROPIC_API_KEY") {
         Ok(key) if !key.is_empty() => {}
-        _ => panic!("ANTHROPIC_API_KEY environment variable is not set. Set it to run API integration tests."),
+        _ => panic!(
+            "ANTHROPIC_API_KEY environment variable is not set. Set it to run API integration tests."
+        ),
     }
 }
 
@@ -23,7 +28,7 @@ async fn test_basic_message() {
 
     let mut client = Messages::new();
     client
-        .model("claude-sonnet-4-20250514")
+        .model(Model::Sonnet4)
         .max_tokens(100)
         .user("What is 2 + 2? Answer with just the number.");
 
@@ -58,7 +63,7 @@ async fn test_system_prompt() {
 
     let mut client = Messages::new();
     client
-        .model("claude-sonnet-4-20250514")
+        .model(Model::Sonnet4)
         .max_tokens(50)
         .system("You are a pirate. Always respond in pirate speak.")
         .user("Hello!");
@@ -89,7 +94,7 @@ async fn test_temperature() {
 
     let mut client = Messages::new();
     client
-        .model("claude-sonnet-4-20250514")
+        .model(Model::Sonnet4)
         .max_tokens(50)
         .temperature(0.0) // Deterministic
         .user("Say exactly: 'Hello, World!'");
@@ -128,7 +133,7 @@ async fn test_tool_use() {
 
     let mut client = Messages::new();
     client
-        .model("claude-sonnet-4-20250514")
+        .model(Model::Sonnet4)
         .max_tokens(200)
         .tools(vec![tool.to_value()])
         .user("What's the weather like in Tokyo?");
@@ -172,7 +177,7 @@ async fn test_tool_use_conversation() {
     // First request - ask Claude to calculate
     let mut client = Messages::new();
     client
-        .model("claude-sonnet-4-20250514")
+        .model(Model::Sonnet4)
         .max_tokens(200)
         .tools(vec![tool.to_value()])
         .user("Calculate 15 * 7 for me.");
@@ -192,7 +197,7 @@ async fn test_tool_use_conversation() {
     // Second request - provide tool result
     let mut client2 = Messages::new();
     client2
-        .model("claude-sonnet-4-20250514")
+        .model(Model::Sonnet4)
         .max_tokens(200)
         .tools(vec![tool.to_value()])
         .user("Calculate 15 * 7 for me.");
@@ -228,7 +233,7 @@ async fn test_forced_tool_choice() {
 
     let mut client = Messages::new();
     client
-        .model("claude-sonnet-4-20250514")
+        .model(Model::Sonnet4)
         .max_tokens(200)
         .tools(vec![tool.to_value()])
         .tool_choice(ToolChoice::Tool {
@@ -255,7 +260,7 @@ async fn test_stop_reason_max_tokens() {
 
     let mut client = Messages::new();
     client
-        .model("claude-sonnet-4-20250514")
+        .model(Model::Sonnet4)
         .max_tokens(5) // Very low limit
         .user("Tell me a very long story about a dragon.");
 
@@ -276,7 +281,7 @@ async fn test_stop_reason_end_turn() {
 
     let mut client = Messages::new();
     client
-        .model("claude-sonnet-4-20250514")
+        .model(Model::Sonnet4)
         .max_tokens(100)
         .user("Say 'Hello' and nothing else.");
 
@@ -297,7 +302,7 @@ async fn test_multi_turn_conversation() {
 
     let mut client = Messages::new();
     client
-        .model("claude-sonnet-4-20250514")
+        .model(Model::Sonnet4)
         .max_tokens(100)
         .user("My name is Bob.")
         .assistant("Nice to meet you, Bob!")
@@ -320,7 +325,7 @@ async fn test_multi_turn_conversation() {
 async fn test_invalid_api_key() {
     let mut client = Messages::with_api_key("invalid_key");
     client
-        .model("claude-sonnet-4-20250514")
+        .model(Model::Sonnet4)
         .max_tokens(100)
         .user("Hello");
 
@@ -343,15 +348,23 @@ async fn test_invalid_api_key() {
     }
 }
 
-/// Test error handling - missing model
+/// Test error handling - empty custom model
+/// Note: Model enum now has a sensible default (Sonnet4), so validation
+/// only fails for explicitly empty custom models via Model::Other("")
 #[tokio::test]
-async fn test_missing_model_error() {
-    let mut client = Messages::with_api_key("test_key");
-    client.max_tokens(100).user("Hello");
+async fn test_empty_custom_model_error() {
+    use anthropic_tools::messages::request::body::Body;
 
-    let result = client.post().await;
+    // Create body with empty custom model
+    let mut body = Body::new(Model::Other(String::new()), 100);
+    body.messages
+        .push(anthropic_tools::messages::request::message::Message::user(
+            "Hello",
+        ));
 
-    assert!(result.is_err(), "Should fail without model");
+    let result = body.validate();
+
+    assert!(result.is_err(), "Should fail with empty custom model");
 
     if let Err(AnthropicToolError::MissingRequiredField(field)) = result {
         assert_eq!(field, "model");
@@ -360,11 +373,21 @@ async fn test_missing_model_error() {
     }
 }
 
+/// Test that default model (Sonnet4) is used when model is not explicitly set
+#[tokio::test]
+async fn test_default_model_used() {
+    let client = Messages::with_api_key("test_key");
+    let body = client.body();
+
+    // Should have default model Sonnet4
+    assert_eq!(body.model, Model::Sonnet4);
+}
+
 /// Test error handling - missing messages
 #[tokio::test]
 async fn test_missing_messages_error() {
     let mut client = Messages::with_api_key("test_key");
-    client.model("claude-sonnet-4-20250514").max_tokens(100);
+    client.model(Model::Sonnet4).max_tokens(100);
 
     let result = client.post().await;
 
@@ -385,7 +408,7 @@ async fn test_vision_url() {
 
     let mut client = Messages::new();
     client
-        .model("claude-sonnet-4-20250514")
+        .model(Model::Sonnet4)
         .max_tokens(200)
         .user_with_image_url(
             "What do you see in this image? Describe it briefly.",
@@ -407,7 +430,7 @@ async fn test_stop_sequences() {
 
     let mut client = Messages::new();
     client
-        .model("claude-sonnet-4-20250514")
+        .model(Model::Sonnet4)
         .max_tokens(200)
         .stop_sequences(vec!["STOP".to_string()])
         .user("Count from 1 to 10, then say STOP, then continue to 20.");
@@ -432,7 +455,7 @@ async fn test_metadata() {
 
     let mut client = Messages::new();
     client
-        .model("claude-sonnet-4-20250514")
+        .model(Model::Sonnet4)
         .max_tokens(50)
         .user_id("test-user-123")
         .user("Hello!");
@@ -451,7 +474,7 @@ async fn test_sampling_parameters() {
 
     let mut client = Messages::new();
     client
-        .model("claude-sonnet-4-20250514")
+        .model(Model::Sonnet4)
         .max_tokens(50)
         .temperature(0.5)
         .top_p(0.9)
@@ -473,7 +496,7 @@ async fn test_response_helpers() {
 
     let mut client = Messages::new();
     client
-        .model("claude-sonnet-4-20250514")
+        .model(Model::Sonnet4)
         .max_tokens(100)
         .user("Hello!");
 

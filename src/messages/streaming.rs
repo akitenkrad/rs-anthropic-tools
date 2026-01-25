@@ -42,9 +42,10 @@
 //! assert_eq!(acc.get_text(), "Hello");
 //! ```
 
-use crate::common::errors::{ErrorDetail, Result};
 use crate::common::Usage;
+use crate::common::errors::{ErrorDetail, Result};
 use crate::messages::request::content::ContentBlock;
+use crate::messages::request::model::Model;
 use crate::messages::response::Response;
 use serde::{Deserialize, Serialize};
 
@@ -173,8 +174,8 @@ pub struct StreamAccumulator {
     /// Stop reason
     pub stop_reason: Option<String>,
 
-    /// Model ID
-    pub model: Option<String>,
+    /// Model used for the response
+    pub model: Option<Model>,
 
     /// Message ID
     pub id: Option<String>,
@@ -219,9 +220,7 @@ impl StreamAccumulator {
                 }
                 Delta::InputJsonDelta { partial_json } => {
                     // For tool use, accumulate JSON
-                    if let Some(ContentBlock::ToolUse { id, .. }) =
-                        self.content_blocks.get(index)
-                    {
+                    if let Some(ContentBlock::ToolUse { id, .. }) = self.content_blocks.get(index) {
                         self.tool_inputs
                             .entry(id.clone())
                             .or_default()

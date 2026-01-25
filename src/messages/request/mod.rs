@@ -43,6 +43,7 @@ pub mod body;
 pub mod content;
 pub mod mcp;
 pub mod message;
+pub mod model;
 pub mod role;
 
 use crate::common::errors::{AnthropicToolError, Result};
@@ -50,9 +51,10 @@ use crate::messages::response::Response;
 use std::env;
 
 // Re-export for internal use
-use body::{Body, Metadata, ToolChoice};
+use body::{Body, Metadata, ThinkingConfig, ToolChoice};
 use content::MediaType;
 use message::{Message, SystemPrompt};
+use model::Model;
 
 /// API endpoint for Anthropic Messages API
 const MESSAGES_API_URL: &str = "https://api.anthropic.com/v1/messages";
@@ -76,8 +78,18 @@ impl Default for Messages {
 impl Messages {
     /// Create a new Messages client
     ///
-    /// Loads API key from ANTHROPIC_API_KEY environment variable
+    /// Loads API key from ANTHROPIC_API_KEY environment variable.
+    /// Also loads from `.env` file if present (does not override existing env vars).
+    ///
+    /// # Priority
+    ///
+    /// 1. Existing environment variable (highest priority)
+    /// 2. `.env` file (if env var is not set)
+    /// 3. [`with_api_key()`](Self::with_api_key) for explicit override
     pub fn new() -> Self {
+        // Load .env file (ignore errors if file doesn't exist)
+        let _ = dotenvy::dotenv();
+
         let api_key = env::var("ANTHROPIC_API_KEY").unwrap_or_default();
         Messages {
             api_key,
@@ -94,8 +106,24 @@ impl Messages {
     }
 
     /// Set the model to use
-    pub fn model<T: AsRef<str>>(&mut self, model: T) -> &mut Self {
-        self.request_body.model = model.as_ref().to_string();
+    ///
+    /// Accepts both [`Model`] enum variants and string types for backward compatibility.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use anthropic_tools::prelude::*;
+    ///
+    /// let mut client = Messages::new();
+    ///
+    /// // Using enum (recommended)
+    /// client.model(Model::Sonnet4);
+    ///
+    /// // Using string (backward compatible)
+    /// client.model("claude-sonnet-4-20250514");
+    /// ```
+    pub fn model<T: Into<Model>>(&mut self, model: T) -> &mut Self {
+        self.request_body.model = model.into();
         self
     }
 
@@ -234,6 +262,32 @@ impl Messages {
         self
     }
 
+    /// Enable extended thinking with a token budget
+    ///
+    /// Extended thinking allows Claude to perform internal reasoning before
+    /// generating a response, improving quality for complex tasks.
+    ///
+    /// # Arguments
+    ///
+    /// * `budget_tokens` - Token budget for thinking (must be >= 1024 and < max_tokens)
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use anthropic_tools::messages::request::Messages;
+    ///
+    /// let mut client = Messages::new();
+    /// client
+    ///     .model("claude-sonnet-4-20250514")
+    ///     .max_tokens(16000)
+    ///     .thinking(10000)  // Enable extended thinking
+    ///     .user("Solve this complex problem...");
+    /// ```
+    pub fn thinking(&mut self, budget_tokens: usize) -> &mut Self {
+        self.request_body.thinking = Some(ThinkingConfig::enabled(budget_tokens));
+        self
+    }
+
     /// Build HTTP headers for the request
     fn build_headers(&self) -> request::header::HeaderMap {
         let mut headers = request::header::HeaderMap::new();
@@ -277,4 +331,3 @@ impl Messages {
         &self.request_body
     }
 }
-
