@@ -148,6 +148,9 @@ async fn main() -> Result<()> {
 ```rust
 use anthropic_tools::prelude::Model;
 
+// Claude 4.5 Family
+Model::Opus45   // claude-opus-4-5-20251101
+
 // Claude 4 Family
 Model::Opus4    // claude-opus-4-20250514
 Model::Sonnet4  // claude-sonnet-4-20250514 (default)

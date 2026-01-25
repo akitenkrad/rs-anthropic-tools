@@ -4,6 +4,9 @@
 //!
 //! # Supported Models
 //!
+//! ## Claude 4.5 Family
+//! - [`Model::Opus45`] - `claude-opus-4-5-20251101`
+//!
 //! ## Claude 4 Family
 //! - [`Model::Opus4`] - `claude-opus-4-20250514`
 //! - [`Model::Sonnet4`] - `claude-sonnet-4-20250514`
@@ -43,6 +46,10 @@ use std::fmt;
 /// Provides type-safe model selection with backward compatibility for string-based usage.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub enum Model {
+    // Claude 4.5 Family
+    /// claude-opus-4-5-20251101
+    Opus45,
+
     // Claude 4 Family
     /// claude-opus-4-20250514
     Opus4,
@@ -73,6 +80,7 @@ impl Model {
     /// Get the model identifier string
     pub fn as_str(&self) -> &str {
         match self {
+            Model::Opus45 => "claude-opus-4-5-20251101",
             Model::Opus4 => "claude-opus-4-20250514",
             Model::Sonnet4 => "claude-sonnet-4-20250514",
             Model::Sonnet35 => "claude-3-5-sonnet-20241022",
@@ -86,7 +94,10 @@ impl Model {
 
     /// Check if this model supports extended thinking
     pub fn supports_thinking(&self) -> bool {
-        matches!(self, Model::Opus4 | Model::Sonnet4 | Model::Sonnet35)
+        matches!(
+            self,
+            Model::Opus45 | Model::Opus4 | Model::Sonnet4 | Model::Sonnet35
+        )
     }
 
     /// Check if this is a known model (not Other)
@@ -105,6 +116,7 @@ impl fmt::Display for Model {
 impl From<&str> for Model {
     fn from(s: &str) -> Self {
         match s {
+            "claude-opus-4-5-20251101" => Model::Opus45,
             "claude-opus-4-20250514" => Model::Opus4,
             "claude-sonnet-4-20250514" => Model::Sonnet4,
             "claude-3-5-sonnet-20241022" => Model::Sonnet35,
@@ -149,6 +161,7 @@ mod tests {
 
     #[test]
     fn test_model_as_str() {
+        assert_eq!(Model::Opus45.as_str(), "claude-opus-4-5-20251101");
         assert_eq!(Model::Opus4.as_str(), "claude-opus-4-20250514");
         assert_eq!(Model::Sonnet4.as_str(), "claude-sonnet-4-20250514");
         assert_eq!(Model::Sonnet35.as_str(), "claude-3-5-sonnet-20241022");
@@ -212,6 +225,7 @@ mod tests {
     #[test]
     fn test_model_supports_thinking() {
         // Models that support thinking
+        assert!(Model::Opus45.supports_thinking());
         assert!(Model::Opus4.supports_thinking());
         assert!(Model::Sonnet4.supports_thinking());
         assert!(Model::Sonnet35.supports_thinking());
