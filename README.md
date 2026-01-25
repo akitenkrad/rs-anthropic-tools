@@ -155,9 +155,6 @@ Model::Opus45   // claude-opus-4-5-20251101
 Model::Opus4    // claude-opus-4-20250514
 Model::Sonnet4  // claude-sonnet-4-20250514 (default)
 
-// Claude 3.5 Family
-Model::Haiku35  // claude-3-5-haiku-20241022
-
 // Claude 3 Family
 Model::Opus3    // claude-3-opus-20240229
 Model::Sonnet3  // claude-3-sonnet-20240229

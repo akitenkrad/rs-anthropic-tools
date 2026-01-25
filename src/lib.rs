@@ -34,7 +34,7 @@
 //! async fn main() -> Result<()> {
 //!     let mut client = Messages::new();
 //!     client
-//!         .model("claude-sonnet-4-20250514")
+//!         .model(Model::Sonnet4)  // Type-safe model selection
 //!         .max_tokens(1024)
 //!         .system("You are a helpful assistant.")
 //!         .user("Hello, how are you?");
