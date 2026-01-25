@@ -389,7 +389,11 @@ mod tests {
     fn test_tool_serialize() {
         let mut tool = Tool::new("get_weather");
         tool.description("Get the current weather in a given location")
-            .add_string_property("location", Some("The city and state, e.g. San Francisco, CA"), true)
+            .add_string_property(
+                "location",
+                Some("The city and state, e.g. San Francisco, CA"),
+                true,
+            )
             .add_enum_property(
                 "unit",
                 Some("Temperature unit"),

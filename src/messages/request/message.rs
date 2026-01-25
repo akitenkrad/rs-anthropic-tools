@@ -204,7 +204,6 @@ impl SystemBlock {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
