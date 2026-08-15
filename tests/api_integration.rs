@@ -28,7 +28,7 @@ async fn test_basic_message() {
 
     let mut client = Messages::new();
     client
-        .model(Model::Sonnet4)
+        .model(Model::Sonnet5)
         .max_tokens(100)
         .user("What is 2 + 2? Answer with just the number.");
 
@@ -63,7 +63,7 @@ async fn test_system_prompt() {
 
     let mut client = Messages::new();
     client
-        .model(Model::Sonnet4)
+        .model(Model::Sonnet5)
         .max_tokens(50)
         .system("You are a pirate. Always respond in pirate speak.")
         .user("Hello!");
@@ -94,7 +94,8 @@ async fn test_temperature() {
 
     let mut client = Messages::new();
     client
-        .model(Model::Sonnet4)
+        // Sampling parameters are rejected on Claude Sonnet 5 / Opus 4.7+
+        .model(Model::Sonnet46)
         .max_tokens(50)
         .temperature(0.0) // Deterministic
         .user("Say exactly: 'Hello, World!'");
@@ -133,7 +134,7 @@ async fn test_tool_use() {
 
     let mut client = Messages::new();
     client
-        .model(Model::Sonnet4)
+        .model(Model::Sonnet5)
         .max_tokens(200)
         .tools(vec![tool.to_value()])
         .user("What's the weather like in Tokyo?");
@@ -177,7 +178,7 @@ async fn test_tool_use_conversation() {
     // First request - ask Claude to calculate
     let mut client = Messages::new();
     client
-        .model(Model::Sonnet4)
+        .model(Model::Sonnet5)
         .max_tokens(200)
         .tools(vec![tool.to_value()])
         .user("Calculate 15 * 7 for me.");
@@ -197,7 +198,7 @@ async fn test_tool_use_conversation() {
     // Second request - provide tool result
     let mut client2 = Messages::new();
     client2
-        .model(Model::Sonnet4)
+        .model(Model::Sonnet5)
         .max_tokens(200)
         .tools(vec![tool.to_value()])
         .user("Calculate 15 * 7 for me.");
@@ -233,7 +234,7 @@ async fn test_forced_tool_choice() {
 
     let mut client = Messages::new();
     client
-        .model(Model::Sonnet4)
+        .model(Model::Sonnet5)
         .max_tokens(200)
         .tools(vec![tool.to_value()])
         .tool_choice(ToolChoice::Tool {
@@ -260,7 +261,7 @@ async fn test_stop_reason_max_tokens() {
 
     let mut client = Messages::new();
     client
-        .model(Model::Sonnet4)
+        .model(Model::Sonnet5)
         .max_tokens(5) // Very low limit
         .user("Tell me a very long story about a dragon.");
 
@@ -281,7 +282,7 @@ async fn test_stop_reason_end_turn() {
 
     let mut client = Messages::new();
     client
-        .model(Model::Sonnet4)
+        .model(Model::Sonnet5)
         .max_tokens(100)
         .user("Say 'Hello' and nothing else.");
 
@@ -302,7 +303,7 @@ async fn test_multi_turn_conversation() {
 
     let mut client = Messages::new();
     client
-        .model(Model::Sonnet4)
+        .model(Model::Sonnet5)
         .max_tokens(100)
         .user("My name is Bob.")
         .assistant("Nice to meet you, Bob!")
@@ -324,10 +325,7 @@ async fn test_multi_turn_conversation() {
 #[ignore]
 async fn test_invalid_api_key() {
     let mut client = Messages::with_api_key("invalid_key");
-    client
-        .model(Model::Sonnet4)
-        .max_tokens(100)
-        .user("Hello");
+    client.model(Model::Sonnet5).max_tokens(100).user("Hello");
 
     let result = client.post().await;
 
@@ -373,21 +371,20 @@ async fn test_empty_custom_model_error() {
     }
 }
 
-/// Test that default model (Sonnet4) is used when model is not explicitly set
+/// Test that the default model (Opus 5) is used when model is not explicitly set
 #[tokio::test]
 async fn test_default_model_used() {
     let client = Messages::with_api_key("test_key");
     let body = client.body();
 
-    // Should have default model Sonnet4
-    assert_eq!(body.model, Model::Sonnet4);
+    assert_eq!(body.model, Model::Opus5);
 }
 
 /// Test error handling - missing messages
 #[tokio::test]
 async fn test_missing_messages_error() {
     let mut client = Messages::with_api_key("test_key");
-    client.model(Model::Sonnet4).max_tokens(100);
+    client.model(Model::Sonnet5).max_tokens(100);
 
     let result = client.post().await;
 
@@ -408,7 +405,7 @@ async fn test_vision_url() {
 
     let mut client = Messages::new();
     client
-        .model(Model::Sonnet4)
+        .model(Model::Sonnet5)
         .max_tokens(200)
         .user_with_image_url(
             "What do you see in this image? Describe it briefly.",
@@ -430,7 +427,7 @@ async fn test_stop_sequences() {
 
     let mut client = Messages::new();
     client
-        .model(Model::Sonnet4)
+        .model(Model::Sonnet5)
         .max_tokens(200)
         .stop_sequences(vec!["STOP".to_string()])
         .user("Count from 1 to 10, then say STOP, then continue to 20.");
@@ -455,7 +452,7 @@ async fn test_metadata() {
 
     let mut client = Messages::new();
     client
-        .model(Model::Sonnet4)
+        .model(Model::Sonnet5)
         .max_tokens(50)
         .user_id("test-user-123")
         .user("Hello!");
@@ -474,7 +471,8 @@ async fn test_sampling_parameters() {
 
     let mut client = Messages::new();
     client
-        .model(Model::Sonnet4)
+        // Sampling parameters are rejected on Claude Sonnet 5 / Opus 4.7+
+        .model(Model::Sonnet46)
         .max_tokens(50)
         .temperature(0.5)
         .top_p(0.9)
@@ -495,10 +493,7 @@ async fn test_response_helpers() {
     require_api_key();
 
     let mut client = Messages::new();
-    client
-        .model(Model::Sonnet4)
-        .max_tokens(100)
-        .user("Hello!");
+    client.model(Model::Sonnet5).max_tokens(100).user("Hello!");
 
     let response = client.post().await.expect("API call failed");
 
@@ -543,39 +538,173 @@ async fn test_model_opus45() {
     println!("[Opus45] Response: {}", response.get_text());
 }
 
-/// Test Opus 4 model
+/// Test Opus 5 model
 #[tokio::test]
 #[ignore]
-async fn test_model_opus4() {
+async fn test_model_opus5() {
     require_api_key();
 
     let mut client = Messages::new();
     client
-        .model(Model::Opus4)
+        .model(Model::Opus5)
         .max_tokens(50)
-        .user("Say 'Hello from Opus 4'");
+        .user("Say 'Hello from Opus 5'");
 
-    let response = client.post().await.expect("Opus 4 API call failed");
+    let response = client.post().await.expect("Opus 5 API call failed");
     assert!(!response.get_text().is_empty());
-    assert_eq!(response.model, Model::Opus4);
-    println!("[Opus4] Response: {}", response.get_text());
+    assert_eq!(response.model, Model::Opus5);
+    println!("[Opus5] Response: {}", response.get_text());
 }
 
-/// Test Sonnet 4 model
+/// Test Sonnet 5 model
 #[tokio::test]
 #[ignore]
-async fn test_model_sonnet4() {
+async fn test_model_sonnet5() {
     require_api_key();
 
     let mut client = Messages::new();
     client
-        .model(Model::Sonnet4)
+        .model(Model::Sonnet5)
         .max_tokens(50)
-        .user("Say 'Hello from Sonnet 4'");
+        .user("Say 'Hello from Sonnet 5'");
 
-    let response = client.post().await.expect("Sonnet 4 API call failed");
+    let response = client.post().await.expect("Sonnet 5 API call failed");
     assert!(!response.get_text().is_empty());
-    assert_eq!(response.model, Model::Sonnet4);
-    println!("[Sonnet4] Response: {}", response.get_text());
+    assert_eq!(response.model, Model::Sonnet5);
+    println!("[Sonnet5] Response: {}", response.get_text());
 }
 
+/// Test Opus 4.8 model
+#[tokio::test]
+#[ignore]
+async fn test_model_opus48() {
+    require_api_key();
+
+    let mut client = Messages::new();
+    client
+        .model(Model::Opus48)
+        .max_tokens(50)
+        .user("Say 'Hello from Opus 4.8'");
+
+    let response = client.post().await.expect("Opus 4.8 API call failed");
+    assert!(!response.get_text().is_empty());
+    assert_eq!(response.model, Model::Opus48);
+    println!("[Opus48] Response: {}", response.get_text());
+}
+
+/// Test Haiku 4.5 model
+#[tokio::test]
+#[ignore]
+async fn test_model_haiku45() {
+    require_api_key();
+
+    let mut client = Messages::new();
+    client
+        .model(Model::Haiku45)
+        .max_tokens(50)
+        .user("Say 'Hello from Haiku 4.5'");
+
+    let response = client.post().await.expect("Haiku 4.5 API call failed");
+    assert!(!response.get_text().is_empty());
+    assert_eq!(response.model, Model::Haiku45);
+    println!("[Haiku45] Response: {}", response.get_text());
+}
+
+// =============================================================================
+// Current API feature tests
+// =============================================================================
+
+/// Test adaptive thinking with an effort level
+#[tokio::test]
+#[ignore]
+async fn test_adaptive_thinking_with_effort() {
+    require_api_key();
+
+    let mut client = Messages::new();
+    client
+        .model(Model::Opus5)
+        .max_tokens(16000)
+        .thinking_summarized()
+        .effort(Effort::Low)
+        .user("How many r's are in 'strawberry'? Think it through.");
+
+    let response = client.post().await.expect("API call failed");
+    assert!(!response.was_refused(), "unexpected refusal");
+    assert!(!response.get_text().is_empty());
+
+    println!("[thinking] {:?}", response.get_thinking());
+    println!("[answer] {}", response.get_text());
+}
+
+/// Test structured outputs via a JSON Schema
+#[tokio::test]
+#[ignore]
+async fn test_structured_output() {
+    require_api_key();
+
+    #[derive(serde::Deserialize)]
+    struct Contact {
+        name: String,
+        email: String,
+    }
+
+    let mut client = Messages::new();
+    client
+        .model(Model::Opus5)
+        .max_tokens(1024)
+        .json_schema(serde_json::json!({
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "email": {"type": "string"}
+            },
+            "required": ["name", "email"],
+            "additionalProperties": false
+        }))
+        .user("Extract the contact: Jane Doe can be reached at jane@example.com.");
+
+    let response = client.post().await.expect("API call failed");
+    let contact: Contact = response.json().expect("response was not valid JSON");
+
+    println!("[structured] {} <{}>", contact.name, contact.email);
+    assert!(contact.email.contains('@'));
+}
+
+/// Test token counting
+#[tokio::test]
+#[ignore]
+async fn test_count_tokens() {
+    require_api_key();
+
+    let mut client = Messages::new();
+    client
+        .model(Model::Opus5)
+        .max_tokens(1024)
+        .system("You are a helpful assistant.")
+        .user("Hello, how are you?");
+
+    let count = client.count_tokens().await.expect("count_tokens failed");
+    assert!(count.input_tokens > 0);
+    println!("[count_tokens] {} input tokens", count.input_tokens);
+}
+
+/// Test refusal fallbacks (beta)
+#[tokio::test]
+#[ignore]
+async fn test_refusal_fallbacks() {
+    require_api_key();
+
+    let mut client = Messages::new();
+    client
+        .model(Model::Opus5)
+        .max_tokens(256)
+        .fallbacks(Fallbacks::auto())
+        .user("Say OK.");
+
+    let response = client.post().await.expect("API call failed");
+
+    for (from, to) in response.fallback_switches() {
+        println!("[fallback] {} declined; {} continued", from, to);
+    }
+    println!("[served by] {}", response.model);
+}

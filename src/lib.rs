@@ -8,8 +8,12 @@
 //! - Tool/Function calling support
 //! - Vision/Multimodal support
 //! - Prompt caching support
-//! - Extended thinking support
-//! - Streaming support (planned)
+//! - Adaptive thinking and effort control
+//! - Structured outputs (JSON Schema)
+//! - Refusal fallbacks and task budgets (beta)
+//! - Token counting
+//! - Files API
+//! - SSE streaming
 //!
 //! ## Configuration
 //!
@@ -34,18 +38,26 @@
 //! async fn main() -> Result<()> {
 //!     let mut client = Messages::new();
 //!     client
-//!         .model(Model::Sonnet4)  // Type-safe model selection
+//!         .model(Model::Opus5)  // Type-safe model selection
 //!         .max_tokens(1024)
 //!         .system("You are a helpful assistant.")
 //!         .user("Hello, how are you?");
 //!
 //!     let response = client.post().await?;
+//!
+//!     // A refusal is a successful HTTP 200 — check before reading content
+//!     if response.was_refused() {
+//!         eprintln!("refused: {:?}", response.refusal_category());
+//!         return Ok(());
+//!     }
+//!
 //!     println!("{}", response.get_text());
 //!     Ok(())
 //! }
 //! ```
 
 pub mod common;
+pub mod files;
 pub mod messages;
 
 /// Commonly used types and traits
@@ -62,15 +74,24 @@ pub mod prelude {
     // Messages API
     pub use crate::messages::request::{
         Messages,
-        body::{Body, Metadata, ThinkingConfig, ToolChoice},
-        content::{ContentBlock, DocumentSource, ImageSource, MediaType},
+        body::{
+            Body, Effort, FallbackEntry, FallbackMode, Fallbacks, Metadata, OutputConfig,
+            OutputFormat, TaskBudget, ThinkingConfig, ThinkingDisplay, ToolChoice,
+        },
+        content::{ContentBlock, DocumentSource, FallbackModelRef, ImageSource, MediaType},
+        mcp::McpServer,
         message::{Message, SystemBlock, SystemPrompt},
         model::Model,
         role::Role,
     };
 
     // Response types
-    pub use crate::messages::response::{Response, StopReason};
+    pub use crate::messages::response::{Container, Response, StopDetails, StopReason, TokenCount};
+
+    // Files API
+    pub use crate::files::{
+        FILES_API_BETA, FileDeleted, FileList, FileMetadata, Files, ListOptions,
+    };
 
     // Streaming types
     pub use crate::messages::streaming::{Delta, MessageDelta, StreamAccumulator, StreamEvent};
@@ -89,13 +110,13 @@ mod tests {
     fn test_messages_builder() {
         let mut client = Messages::with_api_key("test_key");
         client
-            .model(Model::Sonnet4)
+            .model(Model::Opus5)
             .max_tokens(1024)
             .system("You are a helpful assistant.")
             .user("Hello!");
 
         let body = client.body();
-        assert_eq!(body.model, Model::Sonnet4);
+        assert_eq!(body.model, Model::Opus5);
         assert_eq!(body.max_tokens, 1024);
         assert_eq!(body.messages.len(), 1);
     }
@@ -104,12 +125,40 @@ mod tests {
     fn test_messages_builder_with_string_model() {
         let mut client = Messages::with_api_key("test_key");
         client
-            .model("claude-opus-4-20250514") // string still works
+            .model("claude-sonnet-5") // string still works
             .max_tokens(2048)
             .user("Test");
 
         let body = client.body();
-        assert_eq!(body.model, Model::Opus4);
+        assert_eq!(body.model, Model::Sonnet5);
+    }
+
+    #[test]
+    fn test_retired_model_string_still_parses() {
+        // Backward compatibility: retired identifiers still map to their variant
+        let mut client = Messages::with_api_key("test_key");
+        client.model("claude-sonnet-4-20250514");
+
+        let model = &client.body().model;
+        assert_eq!(model, &Model::Sonnet4);
+        assert!(model.is_retired());
+        assert_eq!(model.replacement(), Some(Model::Sonnet5));
+    }
+
+    #[test]
+    fn test_current_api_builder() {
+        let mut client = Messages::with_api_key("test_key");
+        client
+            .model(Model::Opus5)
+            .max_tokens(64000)
+            .thinking_summarized()
+            .effort(Effort::XHigh)
+            .user("Solve this.");
+
+        let body = client.body();
+        assert_eq!(body.effort(), Some(Effort::XHigh));
+        assert!(body.thinking.as_ref().unwrap().is_adaptive());
+        assert!(body.validate().is_ok());
     }
 
     #[test]

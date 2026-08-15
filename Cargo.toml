@@ -1,6 +1,6 @@
 [package]
 name = "anthropic-tools"
-version = "1.0.1"
+version = "1.1.0"
 edition = "2024"
 rust-version = "1.85"
 description = "A Rust library for interacting with the Anthropic API"
@@ -12,19 +12,41 @@ keywords = ["anthropic", "claude", "api", "ai", "llm"]
 categories = ["api-bindings", "asynchronous"]
 
 [dependencies]
-base64 = "0.22.1"
-dotenvy = "0.15"
-image = "0.25.9"
-request = { package = "reqwest", version = "0.13.1", features = [
+base64 = "0.23.1"
+dotenvy = "0.15.7"
+# All default formats except `avif`. The `avif` feature is encode-only (AVIF
+# decoding needs `avif-native`, which is not a default), and this crate only
+# ever encodes PNG/JPEG/GIF/WebP — so dropping it removes the ravif/rav1e
+# dependency tree without losing any reachable functionality.
+image = { version = "0.25.10", default-features = false, features = [
+  "rayon",
+  "bmp",
+  "dds",
+  "exr",
+  "ff",
+  "gif",
+  "hdr",
+  "ico",
+  "jpeg",
+  "png",
+  "pnm",
+  "qoi",
+  "tga",
+  "tiff",
+  "webp",
+] }
+request = { package = "reqwest", version = "0.13.4", features = [
   "blocking",
   "json",
+  "multipart",
+  "query",
 ] }
-serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.148"
-strum = { version = "0.27.2", features = ["derive"] }
-thiserror = "2.0.17"
-tokio = { version = "1.49.0", features = ["full"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+strum = { version = "0.28.0", features = ["derive"] }
+thiserror = "2.0.20"
+tokio = { version = "1.53.1", features = ["full"] }
 
 [dev-dependencies]
-dotenvy = "0.15"
-test-log = { version = "0.2.19", features = ["trace"] }
+dotenvy = "0.15.7"
+test-log = { version = "0.2.21", features = ["trace"] }

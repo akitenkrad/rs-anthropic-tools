@@ -69,7 +69,7 @@ pub enum MediaType {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ImageSource {
     #[serde(rename = "type")]
-    pub type_name: String, // "base64" or "url"
+    pub type_name: String, // "base64", "url", or "file"
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub media_type: Option<String>,
@@ -79,9 +79,27 @@ pub struct ImageSource {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<String>, // URL for url type
+
+    /// Files API identifier, for `type: "file"` sources
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_id: Option<String>,
 }
 
 impl ImageSource {
+    /// Create an image source that references a file uploaded via the Files API
+    ///
+    /// Requires the Files API beta header on the request; see
+    /// [`Files`](crate::files::Files).
+    pub fn from_file_id<T: AsRef<str>>(file_id: T) -> Self {
+        ImageSource {
+            type_name: "file".to_string(),
+            media_type: None,
+            data: None,
+            url: None,
+            file_id: Some(file_id.as_ref().to_string()),
+        }
+    }
+
     /// Create image source from local file path
     pub fn from_path<T: AsRef<str>>(media_type: MediaType, path: T) -> Self {
         let path = PathBuf::from(path.as_ref());
@@ -113,6 +131,7 @@ impl ImageSource {
             media_type: Some(media_type.to_string()),
             data: Some(base64_string),
             url: None,
+            file_id: None,
         }
     }
 
@@ -140,6 +159,7 @@ impl ImageSource {
             media_type: Some(media_type.to_string()),
             data: Some(base64_string),
             url: None,
+            file_id: None,
         }
     }
 
@@ -150,6 +170,7 @@ impl ImageSource {
             media_type: None,
             data: None,
             url: Some(url.as_ref().to_string()),
+            file_id: None,
         }
     }
 
@@ -160,6 +181,7 @@ impl ImageSource {
             media_type: Some(media_type.to_string()),
             data: Some(data.as_ref().to_string()),
             url: None,
+            file_id: None,
         }
     }
 }
@@ -180,8 +202,12 @@ impl CacheControl {
 }
 
 /// Content block types for Anthropic API
+///
+/// Unrecognized block types deserialize to [`ContentBlock::Unknown`] rather
+/// than failing, so new server-side block types stay backward compatible.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "type")]
+#[non_exhaustive]
 pub enum ContentBlock {
     /// Text content block
     #[serde(rename = "text")]
@@ -218,12 +244,26 @@ pub enum ContentBlock {
     },
 
     /// Thinking content block (extended thinking)
+    ///
+    /// On current models the raw chain of thought is never returned. With the
+    /// default display mode the `thinking` field is an empty string; request
+    /// [`ThinkingDisplay::Summarized`](crate::messages::request::body::ThinkingDisplay::Summarized)
+    /// to receive a readable summary.
+    ///
+    /// When continuing a conversation on the same model, echo thinking blocks
+    /// back **unchanged** — the API rejects modified blocks.
     #[serde(rename = "thinking")]
     Thinking {
         thinking: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         signature: Option<String>,
     },
+
+    /// Redacted thinking content block
+    ///
+    /// Echo this back unchanged alongside [`ContentBlock::Thinking`] blocks.
+    #[serde(rename = "redacted_thinking")]
+    RedactedThinking { data: String },
 
     /// Document content block (PDF support)
     #[serde(rename = "document")]
@@ -232,13 +272,50 @@ pub enum ContentBlock {
         #[serde(skip_serializing_if = "Option::is_none")]
         cache_control: Option<CacheControl>,
     },
+
+    /// Server-side tool invocation (web search, web fetch, code execution)
+    ///
+    /// Server tools run on Anthropic's infrastructure — there is nothing to
+    /// execute client-side, and the matching result arrives in the same
+    /// response.
+    #[serde(rename = "server_tool_use")]
+    ServerToolUse {
+        id: String,
+        name: String,
+        input: Value,
+    },
+
+    /// A refusal-fallback switch point (beta)
+    ///
+    /// Emitted once per model that ran and declined the turn when
+    /// [`Fallbacks`](crate::messages::request::body::Fallbacks) is configured.
+    #[serde(rename = "fallback")]
+    Fallback {
+        from: FallbackModelRef,
+        to: FallbackModelRef,
+    },
+
+    /// A content block type this version of the library does not model
+    ///
+    /// Deserializing an unrecognized block yields this variant instead of
+    /// failing, so a new server-side block type cannot break an existing
+    /// client. Do not echo it back to the API.
+    #[serde(other)]
+    Unknown,
+}
+
+/// The model on one side of a [`ContentBlock::Fallback`] switch point
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct FallbackModelRef {
+    /// The model identifier
+    pub model: crate::messages::request::model::Model,
 }
 
 /// Document source for PDF content
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DocumentSource {
     #[serde(rename = "type")]
-    pub type_name: String, // "base64" or "url"
+    pub type_name: String, // "base64", "url", or "file"
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub media_type: Option<String>, // "application/pdf"
@@ -248,9 +325,27 @@ pub struct DocumentSource {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<String>, // URL for url type
+
+    /// Files API identifier, for `type: "file"` sources
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_id: Option<String>,
 }
 
 impl DocumentSource {
+    /// Create a document source that references a file uploaded via the Files API
+    ///
+    /// Requires the Files API beta header on the request; see
+    /// [`Files`](crate::files::Files).
+    pub fn from_file_id<T: AsRef<str>>(file_id: T) -> Self {
+        DocumentSource {
+            type_name: "file".to_string(),
+            media_type: None,
+            data: None,
+            url: None,
+            file_id: Some(file_id.as_ref().to_string()),
+        }
+    }
+
     /// Create document source from base64 data
     pub fn from_base64<T: AsRef<str>>(data: T) -> Self {
         DocumentSource {
@@ -258,6 +353,7 @@ impl DocumentSource {
             media_type: Some("application/pdf".to_string()),
             data: Some(data.as_ref().to_string()),
             url: None,
+            file_id: None,
         }
     }
 
@@ -268,6 +364,7 @@ impl DocumentSource {
             media_type: None,
             data: None,
             url: Some(url.as_ref().to_string()),
+            file_id: None,
         }
     }
 
@@ -281,6 +378,7 @@ impl DocumentSource {
             media_type: Some("application/pdf".to_string()),
             data: Some(base64_string),
             url: None,
+            file_id: None,
         })
     }
 }
@@ -368,11 +466,103 @@ impl ContentBlock {
             cache_control: None,
         }
     }
+
+    /// Create a document content block from a Files API identifier
+    ///
+    /// Upload the file first with [`Files`](crate::files::Files), then pass
+    /// the returned id here.
+    pub fn document_from_file_id<T: AsRef<str>>(file_id: T) -> Self {
+        ContentBlock::Document {
+            source: DocumentSource::from_file_id(file_id),
+            cache_control: None,
+        }
+    }
+
+    /// Create an image content block from a Files API identifier
+    pub fn image_from_file_id<T: AsRef<str>>(file_id: T) -> Self {
+        ContentBlock::Image {
+            source: ImageSource::from_file_id(file_id),
+            cache_control: None,
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Guards the trimmed `image` feature set in Cargo.toml.
+    ///
+    /// The `avif` feature is disabled to drop the ravif/rav1e dependency tree.
+    /// Every codec this crate can actually reach must still round-trip.
+    #[test]
+    fn test_image_from_path_round_trip() {
+        let dir = std::env::temp_dir().join("anthropic_tools_image_test");
+        std::fs::create_dir_all(&dir).unwrap();
+
+        for (media_type, ext, format) in [
+            (MediaType::Png, "png", image::ImageFormat::Png),
+            (MediaType::Jpeg, "jpg", image::ImageFormat::Jpeg),
+            (MediaType::Gif, "gif", image::ImageFormat::Gif),
+            (MediaType::Webp, "webp", image::ImageFormat::WebP),
+        ] {
+            let path = dir.join(format!("sample.{}", ext));
+            let img = image::RgbImage::from_pixel(2, 2, image::Rgb([10, 20, 30]));
+
+            // WebP encoding is not supported by the `image` crate; write the
+            // fixture as PNG and let from_path re-encode it to WebP.
+            let (fixture_path, fixture_format) = if format == image::ImageFormat::WebP {
+                (dir.join("sample_webp_src.png"), image::ImageFormat::Png)
+            } else {
+                (path.clone(), format)
+            };
+            img.save_with_format(&fixture_path, fixture_format).unwrap();
+
+            let source = ImageSource::from_path(media_type.clone(), fixture_path.to_str().unwrap());
+            assert_eq!(source.type_name, "base64");
+            assert_eq!(source.media_type, Some(media_type.to_string()));
+            assert!(!source.data.unwrap().is_empty());
+        }
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_image_from_file_id() {
+        let block = ContentBlock::image_from_file_id("file_abc123");
+        let json = serde_json::to_string(&block).unwrap();
+        assert!(json.contains("\"type\":\"image\""));
+        assert!(json.contains("\"file_id\":\"file_abc123\""));
+    }
+
+    #[test]
+    fn test_document_from_file_id() {
+        let block = ContentBlock::document_from_file_id("file_abc123");
+        let json = serde_json::to_string(&block).unwrap();
+        assert!(json.contains("\"type\":\"document\""));
+        assert!(json.contains("\"file_id\":\"file_abc123\""));
+        // base64/url fields must be omitted for a file reference
+        assert!(!json.contains("\"data\""));
+        assert!(!json.contains("\"url\""));
+    }
+
+    #[test]
+    fn test_unknown_block_deserializes() {
+        let json = r#"{"type":"some_future_block","payload":{"a":1}}"#;
+        let block: ContentBlock = serde_json::from_str(json).unwrap();
+        assert!(matches!(block, ContentBlock::Unknown));
+    }
+
+    #[test]
+    fn test_redacted_thinking_round_trip() {
+        let json = r#"{"type":"redacted_thinking","data":"abc"}"#;
+        let block: ContentBlock = serde_json::from_str(json).unwrap();
+        match &block {
+            ContentBlock::RedactedThinking { data } => assert_eq!(data, "abc"),
+            other => panic!("unexpected block: {:?}", other),
+        }
+        assert_eq!(serde_json::to_string(&block).unwrap(), json);
+    }
 
     #[test]
     fn test_text_content_block() {
