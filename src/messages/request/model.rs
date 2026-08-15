@@ -28,7 +28,7 @@
 //! compiling; use [`Model::is_retired`] to detect them.
 //!
 //! - [`Model::Opus4`], [`Model::Sonnet4`] - retired 2026-06-15
-//! - [`Model::Haiku3`] - retired 2026-04-19
+//! - [`Model::Haiku3`] - retired 2026-04-20
 //! - [`Model::Opus3`] - retired 2026-01-05
 //! - [`Model::Sonnet3`] - retired 2025-07-21
 //!
@@ -104,7 +104,7 @@ pub enum Model {
     Opus3,
     /// claude-3-sonnet-20240229 - **retired 2025-07-21**
     Sonnet3,
-    /// claude-3-haiku-20240307 - **retired 2026-04-19**
+    /// claude-3-haiku-20240307 - **retired 2026-04-20**
     Haiku3,
 
     // Forward compatibility

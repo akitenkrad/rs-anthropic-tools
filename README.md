@@ -301,7 +301,7 @@ Model::Sonnet45 // claude-sonnet-4-5
 // Retired — kept for backward compatibility, these return 404
 Model::Opus4    // claude-opus-4-20250514      (retired 2026-06-15)
 Model::Sonnet4  // claude-sonnet-4-20250514    (retired 2026-06-15)
-Model::Haiku3   // claude-3-haiku-20240307     (retired 2026-04-19)
+Model::Haiku3   // claude-3-haiku-20240307     (retired 2026-04-20)
 Model::Opus3    // claude-3-opus-20240229      (retired 2026-01-05)
 Model::Sonnet3  // claude-3-sonnet-20240229    (retired 2025-07-21)
 
