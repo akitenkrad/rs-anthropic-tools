@@ -4,11 +4,16 @@
 //!
 //! # Supported Models
 //!
-//! ## Claude 5 Family (current)
-//! - [`Model::Fable5`] - `claude-fable-5` - most capable widely released model
-//! - [`Model::Mythos5`] - `claude-mythos-5` - Project Glasswing participants only
-//! - [`Model::Opus5`] - `claude-opus-5` - **default**
-//! - [`Model::Sonnet5`] - `claude-sonnet-5`
+//! ## Claude 5.x Family (current)
+//! - [`Model::Fable51`] - `claude-fable-5-1` - most capable model
+//! - [`Model::Mythos51`] - `claude-mythos-5-1` - Project Glasswing participants only
+//! - [`Model::Opus55`] - `claude-opus-5-5` - **default**
+//! - [`Model::Sonnet55`] - `claude-sonnet-5-5`
+//! - [`Model::Haiku55`] - `claude-haiku-5-5`
+//! - [`Model::Fable5`] - `claude-fable-5` - still served
+//! - [`Model::Mythos5`] - `claude-mythos-5` - still served, Project Glasswing only
+//! - [`Model::Opus5`] - `claude-opus-5` - still served
+//! - [`Model::Sonnet5`] - `claude-sonnet-5` - still served
 //!
 //! ## Claude 4.x Family (current)
 //! - [`Model::Opus48`] - `claude-opus-4-8`
@@ -19,7 +24,7 @@
 //!
 //! ## Legacy (still served)
 //! - [`Model::Opus45`] - `claude-opus-4-5`
-//! - [`Model::Sonnet45`] - `claude-sonnet-4-5`
+//! - [`Model::Sonnet45`] - `claude-sonnet-4-5` - deprecated, retires 2026-11-30
 //!
 //! ## Retired (kept for backward compatibility only)
 //!
@@ -38,12 +43,13 @@
 //! use anthropic_tools::messages::request::model::Model;
 //!
 //! // Using enum variants (recommended)
-//! let model = Model::Opus5;
-//! assert_eq!(model.as_str(), "claude-opus-5");
+//! let model = Model::default();
+//! assert_eq!(model, Model::Opus55);
+//! assert_eq!(model.as_str(), "claude-opus-5-5");
 //!
 //! // From string (backward compatibility)
-//! let model: Model = "claude-sonnet-5".into();
-//! assert_eq!(model, Model::Sonnet5);
+//! let model: Model = "claude-sonnet-5-5".into();
+//! assert_eq!(model, Model::Sonnet55);
 //!
 //! // Custom/future models
 //! let model: Model = "custom-model-v1".into();
@@ -60,7 +66,34 @@ use std::fmt;
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 #[non_exhaustive]
 pub enum Model {
-    // Claude 5 Family
+    // Claude 5.x Family
+    /// claude-fable-5-1 - most capable model
+    ///
+    /// Thinking is always on and cannot be disabled.
+    Fable51,
+
+    /// claude-mythos-5-1 - same capabilities as Fable 5.1, Project Glasswing only
+    Mythos51,
+
+    /// claude-opus-5-5 (default)
+    ///
+    /// Thinking is always on. The API default effort is `medium` (unlike
+    /// Claude Opus 5, whose default is `high`).
+    #[default]
+    Opus55,
+
+    /// claude-sonnet-5-5
+    ///
+    /// Use `thinking: {"type":"between_tools"}` to turn thinking off between
+    /// tool calls.
+    Sonnet55,
+
+    /// claude-haiku-5-5
+    ///
+    /// The API default effort is `medium`.
+    Haiku55,
+
+    // Claude 5 Family (still served)
     /// claude-fable-5 - most capable widely released model
     ///
     /// Thinking is always on and cannot be disabled. Requires 30-day data
@@ -70,8 +103,7 @@ pub enum Model {
     /// claude-mythos-5 - same capabilities as Fable 5, Project Glasswing only
     Mythos5,
 
-    /// claude-opus-5 (default)
-    #[default]
+    /// claude-opus-5
     Opus5,
 
     /// claude-sonnet-5
@@ -92,7 +124,7 @@ pub enum Model {
     // Legacy (still served)
     /// claude-opus-4-5
     Opus45,
-    /// claude-sonnet-4-5
+    /// claude-sonnet-4-5 - **deprecated, retires 2026-11-30**
     Sonnet45,
 
     // Retired - kept for backward compatibility, will return 404
@@ -116,6 +148,11 @@ impl Model {
     /// Get the model identifier string
     pub fn as_str(&self) -> &str {
         match self {
+            Model::Fable51 => "claude-fable-5-1",
+            Model::Mythos51 => "claude-mythos-5-1",
+            Model::Opus55 => "claude-opus-5-5",
+            Model::Sonnet55 => "claude-sonnet-5-5",
+            Model::Haiku55 => "claude-haiku-5-5",
             Model::Fable5 => "claude-fable-5",
             Model::Mythos5 => "claude-mythos-5",
             Model::Opus5 => "claude-opus-5",
@@ -139,11 +176,18 @@ impl Model {
     /// Check if this model supports extended thinking in any form
     ///
     /// Note that *how* thinking is configured differs by model — see
-    /// [`Model::supports_adaptive_thinking`] and [`Model::supports_budget_tokens`].
+    /// [`Model::supports_adaptive_thinking`],
+    /// [`Model::supports_between_tools_thinking`], and
+    /// [`Model::supports_budget_tokens`].
     pub fn supports_thinking(&self) -> bool {
         matches!(
             self,
-            Model::Fable5
+            Model::Fable51
+                | Model::Mythos51
+                | Model::Opus55
+                | Model::Sonnet55
+                | Model::Haiku55
+                | Model::Fable5
                 | Model::Mythos5
                 | Model::Opus5
                 | Model::Sonnet5
@@ -166,7 +210,12 @@ impl Model {
     pub fn supports_adaptive_thinking(&self) -> bool {
         matches!(
             self,
-            Model::Fable5
+            Model::Fable51
+                | Model::Mythos51
+                | Model::Opus55
+                | Model::Sonnet55
+                | Model::Haiku55
+                | Model::Fable5
                 | Model::Mythos5
                 | Model::Opus5
                 | Model::Sonnet5
@@ -179,10 +228,8 @@ impl Model {
 
     /// Check if this model accepts `thinking: {"type": "enabled", "budget_tokens": N}`
     ///
-    /// Returns `false` for Opus 4.7 and later, Claude Opus 5, Claude Sonnet 5,
-    /// Claude Fable 5, and Claude Mythos 5 — sending `budget_tokens` to those
-    /// models returns a `400` error. Use adaptive thinking with
-    /// [`Effort`] instead.
+    /// Current Claude 5.x models reject `budget_tokens` with a `400`; use
+    /// adaptive thinking with [`Effort`] instead.
     pub fn supports_budget_tokens(&self) -> bool {
         matches!(
             self,
@@ -198,43 +245,76 @@ impl Model {
 
     /// Check if this model accepts `thinking: {"type": "disabled"}`
     ///
-    /// Claude Fable 5 and Claude Mythos 5 always think; an explicit `disabled`
-    /// configuration returns a `400`. Omit the thinking field instead.
+    /// Claude Fable 5/5.1, Mythos 5/5.1, and Opus 5.5 always think; an explicit
+    /// `disabled` configuration returns a `400`. Sonnet 5.5 uses
+    /// `between_tools` instead.
     ///
-    /// On Claude Opus 5, `disabled` is additionally capped to effort `high` or
-    /// lower — see [`Model::allows_disabled_thinking_at`].
+    /// On Claude Opus 5 and Haiku 5.5, `disabled` is additionally capped to
+    /// effort `high` or lower — see [`Model::allows_disabled_thinking_at`].
     pub fn supports_disabled_thinking(&self) -> bool {
-        !matches!(self, Model::Fable5 | Model::Mythos5)
+        !matches!(
+            self,
+            Model::Fable51
+                | Model::Mythos51
+                | Model::Opus55
+                | Model::Sonnet55
+                | Model::Fable5
+                | Model::Mythos5
+        )
     }
 
     /// Check if disabled thinking is allowed at the given effort level
     ///
-    /// Claude Opus 5 rejects `thinking: {"type": "disabled"}` when effort is
-    /// `xhigh` or `max`.
+    /// Claude Opus 5 and Haiku 5.5 reject `thinking: {"type": "disabled"}`
+    /// when effort is `xhigh` or `max`.
     pub fn allows_disabled_thinking_at(&self, effort: Option<Effort>) -> bool {
         if !self.supports_disabled_thinking() {
             return false;
         }
         !matches!(
             (self, effort),
-            (Model::Opus5, Some(Effort::XHigh) | Some(Effort::Max))
+            (
+                Model::Opus5 | Model::Haiku55,
+                Some(Effort::XHigh) | Some(Effort::Max)
+            )
         )
     }
 
     /// Check if thinking is always on for this model (cannot be turned off)
     pub fn thinking_always_on(&self) -> bool {
-        matches!(self, Model::Fable5 | Model::Mythos5)
+        matches!(
+            self,
+            Model::Fable51 | Model::Mythos51 | Model::Opus55 | Model::Fable5 | Model::Mythos5
+        )
+    }
+
+    /// Check if this model accepts `thinking: {"type": "between_tools"}`
+    pub fn supports_between_tools_thinking(&self) -> bool {
+        matches!(self, Model::Sonnet55)
+    }
+
+    /// Check if this model accepts forced `tool_choice` values (`any` or `tool`)
+    pub fn supports_forced_tool_choice(&self) -> bool {
+        !matches!(
+            self,
+            Model::Fable51 | Model::Mythos51 | Model::Opus55 | Model::Sonnet55
+        )
     }
 
     /// Check if this model accepts `temperature`, `top_p`, and `top_k`
     ///
-    /// Returns `false` for Opus 4.7 and later, Claude Opus 5, Claude Sonnet 5,
-    /// Claude Fable 5, and Claude Mythos 5 — those models reject sampling
-    /// parameters with a `400`. Steer behavior via prompting instead.
+    /// Returns `false` for Opus 4.7 and later and current Claude 5.x models —
+    /// those models reject sampling parameters with a `400`. Steer behavior
+    /// via prompting instead.
     pub fn supports_sampling_params(&self) -> bool {
         !matches!(
             self,
-            Model::Fable5
+            Model::Fable51
+                | Model::Mythos51
+                | Model::Opus55
+                | Model::Sonnet55
+                | Model::Haiku55
+                | Model::Fable5
                 | Model::Mythos5
                 | Model::Opus5
                 | Model::Sonnet5
@@ -247,7 +327,12 @@ impl Model {
     pub fn supports_effort(&self) -> bool {
         matches!(
             self,
-            Model::Fable5
+            Model::Fable51
+                | Model::Mythos51
+                | Model::Opus55
+                | Model::Sonnet55
+                | Model::Haiku55
+                | Model::Fable5
                 | Model::Mythos5
                 | Model::Opus5
                 | Model::Sonnet5
@@ -272,7 +357,12 @@ impl Model {
             Effort::Max => !matches!(self, Model::Opus45),
             Effort::XHigh => matches!(
                 self,
-                Model::Fable5
+                Model::Fable51
+                    | Model::Mythos51
+                    | Model::Opus55
+                    | Model::Sonnet55
+                    | Model::Haiku55
+                    | Model::Fable5
                     | Model::Mythos5
                     | Model::Opus5
                     | Model::Sonnet5
@@ -290,7 +380,12 @@ impl Model {
     pub fn supports_prefill(&self) -> bool {
         !matches!(
             self,
-            Model::Fable5
+            Model::Fable51
+                | Model::Mythos51
+                | Model::Opus55
+                | Model::Sonnet55
+                | Model::Haiku55
+                | Model::Fable5
                 | Model::Mythos5
                 | Model::Opus5
                 | Model::Sonnet5
@@ -306,7 +401,12 @@ impl Model {
     /// Returns `None` for [`Model::Other`].
     pub fn context_window(&self) -> Option<usize> {
         match self {
-            Model::Fable5
+            Model::Fable51
+            | Model::Mythos51
+            | Model::Opus55
+            | Model::Sonnet55
+            | Model::Haiku55
+            | Model::Fable5
             | Model::Mythos5
             | Model::Opus5
             | Model::Sonnet5
@@ -332,7 +432,12 @@ impl Model {
     /// streaming to avoid HTTP timeouts.
     pub fn max_output_tokens(&self) -> Option<usize> {
         match self {
-            Model::Fable5
+            Model::Fable51
+            | Model::Mythos51
+            | Model::Opus55
+            | Model::Sonnet55
+            | Model::Haiku55
+            | Model::Fable5
             | Model::Mythos5
             | Model::Opus5
             | Model::Sonnet5
@@ -366,9 +471,9 @@ impl Model {
     /// Returns `None` for models that are still served.
     pub fn replacement(&self) -> Option<Model> {
         match self {
-            Model::Opus4 | Model::Opus3 => Some(Model::Opus5),
-            Model::Sonnet4 | Model::Sonnet3 => Some(Model::Sonnet5),
-            Model::Haiku3 => Some(Model::Haiku45),
+            Model::Opus4 | Model::Opus3 => Some(Model::Opus55),
+            Model::Sonnet4 | Model::Sonnet3 => Some(Model::Sonnet55),
+            Model::Haiku3 => Some(Model::Haiku55),
             _ => None,
         }
     }
@@ -384,6 +489,11 @@ impl fmt::Display for Model {
 impl From<&str> for Model {
     fn from(s: &str) -> Self {
         match s {
+            "claude-fable-5-1" => Model::Fable51,
+            "claude-mythos-5-1" => Model::Mythos51,
+            "claude-opus-5-5" => Model::Opus55,
+            "claude-sonnet-5-5" => Model::Sonnet55,
+            "claude-haiku-5-5" => Model::Haiku55,
             "claude-fable-5" => Model::Fable5,
             "claude-mythos-5" => Model::Mythos5,
             "claude-opus-5" => Model::Opus5,
@@ -435,8 +545,23 @@ impl<'de> Deserialize<'de> for Model {
 mod tests {
     use super::*;
 
+    fn new_models() -> [Model; 5] {
+        [
+            Model::Fable51,
+            Model::Mythos51,
+            Model::Opus55,
+            Model::Sonnet55,
+            Model::Haiku55,
+        ]
+    }
+
     #[test]
     fn test_model_as_str() {
+        assert_eq!(Model::Fable51.as_str(), "claude-fable-5-1");
+        assert_eq!(Model::Mythos51.as_str(), "claude-mythos-5-1");
+        assert_eq!(Model::Opus55.as_str(), "claude-opus-5-5");
+        assert_eq!(Model::Sonnet55.as_str(), "claude-sonnet-5-5");
+        assert_eq!(Model::Haiku55.as_str(), "claude-haiku-5-5");
         assert_eq!(Model::Fable5.as_str(), "claude-fable-5");
         assert_eq!(Model::Opus5.as_str(), "claude-opus-5");
         assert_eq!(Model::Sonnet5.as_str(), "claude-sonnet-5");
@@ -455,9 +580,9 @@ mod tests {
 
     #[test]
     fn test_model_serialize() {
-        let model = Model::Opus5;
+        let model = Model::Opus55;
         let json = serde_json::to_string(&model).unwrap();
-        assert_eq!(json, "\"claude-opus-5\"");
+        assert_eq!(json, "\"claude-opus-5-5\"");
     }
 
     #[test]
@@ -469,9 +594,16 @@ mod tests {
 
     #[test]
     fn test_model_deserialize() {
-        let json = "\"claude-sonnet-5\"";
-        let model: Model = serde_json::from_str(json).unwrap();
-        assert_eq!(model, Model::Sonnet5);
+        for (id, expected) in [
+            ("claude-fable-5-1", Model::Fable51),
+            ("claude-mythos-5-1", Model::Mythos51),
+            ("claude-opus-5-5", Model::Opus55),
+            ("claude-sonnet-5-5", Model::Sonnet55),
+            ("claude-haiku-5-5", Model::Haiku55),
+        ] {
+            let model: Model = serde_json::from_str(&format!(r#""{id}""#)).unwrap();
+            assert_eq!(model, expected);
+        }
     }
 
     #[test]
@@ -483,6 +615,11 @@ mod tests {
 
     #[test]
     fn test_model_from_str() {
+        assert_eq!(Model::from("claude-fable-5-1"), Model::Fable51);
+        assert_eq!(Model::from("claude-mythos-5-1"), Model::Mythos51);
+        assert_eq!(Model::from("claude-opus-5-5"), Model::Opus55);
+        assert_eq!(Model::from("claude-sonnet-5-5"), Model::Sonnet55);
+        assert_eq!(Model::from("claude-haiku-5-5"), Model::Haiku55);
         assert_eq!(Model::from("claude-opus-5"), Model::Opus5);
         assert_eq!(Model::from("claude-opus-4-8"), Model::Opus48);
         assert_eq!(
@@ -514,6 +651,9 @@ mod tests {
 
     #[test]
     fn test_model_supports_thinking() {
+        for model in new_models() {
+            assert!(model.supports_thinking(), "{model}");
+        }
         assert!(Model::Opus5.supports_thinking());
         assert!(Model::Sonnet5.supports_thinking());
         assert!(Model::Haiku45.supports_thinking());
@@ -525,6 +665,9 @@ mod tests {
 
     #[test]
     fn test_model_supports_adaptive_thinking() {
+        for model in new_models() {
+            assert!(model.supports_adaptive_thinking(), "{model}");
+        }
         assert!(Model::Opus5.supports_adaptive_thinking());
         assert!(Model::Sonnet46.supports_adaptive_thinking());
         assert!(Model::Fable5.supports_adaptive_thinking());
@@ -536,6 +679,9 @@ mod tests {
 
     #[test]
     fn test_model_supports_budget_tokens() {
+        for model in new_models() {
+            assert!(!model.supports_budget_tokens(), "{model}");
+        }
         assert!(Model::Haiku45.supports_budget_tokens());
         assert!(Model::Opus46.supports_budget_tokens());
         assert!(Model::Sonnet4.supports_budget_tokens());
@@ -550,6 +696,23 @@ mod tests {
 
     #[test]
     fn test_model_disabled_thinking() {
+        assert!(!Model::Fable51.supports_disabled_thinking());
+        assert!(!Model::Mythos51.supports_disabled_thinking());
+        assert!(!Model::Opus55.supports_disabled_thinking());
+        assert!(!Model::Sonnet55.supports_disabled_thinking());
+        assert!(Model::Haiku55.supports_disabled_thinking());
+
+        assert!(Model::Fable51.thinking_always_on());
+        assert!(Model::Mythos51.thinking_always_on());
+        assert!(Model::Opus55.thinking_always_on());
+        assert!(!Model::Sonnet55.thinking_always_on());
+        assert!(!Model::Haiku55.thinking_always_on());
+
+        assert!(!Model::Opus55.allows_disabled_thinking_at(Some(Effort::Low)));
+        assert!(Model::Haiku55.allows_disabled_thinking_at(Some(Effort::High)));
+        assert!(!Model::Haiku55.allows_disabled_thinking_at(Some(Effort::XHigh)));
+        assert!(!Model::Haiku55.allows_disabled_thinking_at(Some(Effort::Max)));
+
         assert!(Model::Opus5.supports_disabled_thinking());
         assert!(!Model::Fable5.supports_disabled_thinking());
         assert!(!Model::Mythos5.supports_disabled_thinking());
@@ -566,6 +729,9 @@ mod tests {
 
     #[test]
     fn test_model_supports_sampling_params() {
+        for model in new_models() {
+            assert!(!model.supports_sampling_params(), "{model}");
+        }
         assert!(Model::Haiku45.supports_sampling_params());
         assert!(Model::Opus46.supports_sampling_params());
         assert!(Model::Sonnet46.supports_sampling_params());
@@ -578,6 +744,18 @@ mod tests {
 
     #[test]
     fn test_model_supports_effort() {
+        for model in new_models() {
+            assert!(model.supports_effort(), "{model}");
+            for effort in [
+                Effort::Low,
+                Effort::Medium,
+                Effort::High,
+                Effort::XHigh,
+                Effort::Max,
+            ] {
+                assert!(model.supports_effort_level(effort), "{model}: {effort:?}");
+            }
+        }
         assert!(Model::Opus5.supports_effort());
         assert!(Model::Opus45.supports_effort());
         assert!(!Model::Haiku45.supports_effort());
@@ -593,6 +771,9 @@ mod tests {
 
     #[test]
     fn test_model_supports_prefill() {
+        for model in new_models() {
+            assert!(!model.supports_prefill(), "{model}");
+        }
         assert!(Model::Haiku45.supports_prefill());
         assert!(Model::Opus45.supports_prefill());
         assert!(!Model::Opus46.supports_prefill());
@@ -602,6 +783,10 @@ mod tests {
 
     #[test]
     fn test_model_limits() {
+        for model in new_models() {
+            assert_eq!(model.context_window(), Some(1_000_000), "{model}");
+            assert_eq!(model.max_output_tokens(), Some(128_000), "{model}");
+        }
         assert_eq!(Model::Opus5.context_window(), Some(1_000_000));
         assert_eq!(Model::Haiku45.context_window(), Some(200_000));
         assert_eq!(Model::Other("x".into()).context_window(), None);
@@ -632,15 +817,37 @@ mod tests {
 
     #[test]
     fn test_model_replacement() {
-        assert_eq!(Model::Sonnet4.replacement(), Some(Model::Sonnet5));
-        assert_eq!(Model::Opus4.replacement(), Some(Model::Opus5));
-        assert_eq!(Model::Haiku3.replacement(), Some(Model::Haiku45));
+        assert_eq!(Model::Sonnet4.replacement(), Some(Model::Sonnet55));
+        assert_eq!(Model::Sonnet3.replacement(), Some(Model::Sonnet55));
+        assert_eq!(Model::Opus4.replacement(), Some(Model::Opus55));
+        assert_eq!(Model::Opus3.replacement(), Some(Model::Opus55));
+        assert_eq!(Model::Haiku3.replacement(), Some(Model::Haiku55));
         assert_eq!(Model::Opus5.replacement(), None);
     }
 
     #[test]
     fn test_model_default() {
-        assert_eq!(Model::default(), Model::Opus5);
+        assert_eq!(Model::default(), Model::Opus55);
+    }
+
+    #[test]
+    fn test_model_supports_between_tools_thinking() {
+        assert!(Model::Sonnet55.supports_between_tools_thinking());
+        assert!(!Model::Fable51.supports_between_tools_thinking());
+        assert!(!Model::Mythos51.supports_between_tools_thinking());
+        assert!(!Model::Opus55.supports_between_tools_thinking());
+        assert!(!Model::Haiku55.supports_between_tools_thinking());
+        assert!(!Model::Sonnet5.supports_between_tools_thinking());
+    }
+
+    #[test]
+    fn test_model_supports_forced_tool_choice() {
+        assert!(!Model::Fable51.supports_forced_tool_choice());
+        assert!(!Model::Mythos51.supports_forced_tool_choice());
+        assert!(!Model::Opus55.supports_forced_tool_choice());
+        assert!(!Model::Sonnet55.supports_forced_tool_choice());
+        assert!(Model::Haiku55.supports_forced_tool_choice());
+        assert!(Model::Opus5.supports_forced_tool_choice());
     }
 
     #[test]

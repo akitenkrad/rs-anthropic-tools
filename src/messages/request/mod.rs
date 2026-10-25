@@ -374,8 +374,8 @@ impl Messages {
 
     /// Turn thinking off
     ///
-    /// Rejected on Claude Fable 5 and Claude Mythos 5 (which always think), and
-    /// on Claude Opus 5 at effort `xhigh` or `max`.
+    /// Rejected on Claude Fable 5/5.1, Mythos 5/5.1, Opus 5.5, and Sonnet 5.5.
+    /// Claude Opus 5 and Haiku 5.5 also reject it at effort `xhigh` or `max`.
     pub fn thinking_disabled(&mut self) -> &mut Self {
         self.request_body.thinking = Some(ThinkingConfig::disabled());
         self
@@ -397,9 +397,9 @@ impl Messages {
 
     /// Set the effort level (reasoning depth and token spend)
     ///
-    /// The API default is [`Effort::High`]. Use [`Effort::XHigh`] for coding
-    /// and agentic work, and [`Effort::Low`] or [`Effort::Medium`] for routine
-    /// or latency-sensitive tasks.
+    /// The API default is [`Effort::Medium`] on Claude Opus 5.5 and Haiku 5.5,
+    /// and [`Effort::High`] on Claude Opus 5. Use [`Effort::XHigh`] for coding
+    /// and agentic work, and lower levels for routine or latency-sensitive tasks.
     pub fn effort(&mut self, effort: Effort) -> &mut Self {
         self.output_config_mut().effort = Some(effort);
         self

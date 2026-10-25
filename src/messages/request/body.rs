@@ -5,7 +5,7 @@
 //!
 //! - [`Body`] - Complete request body with all parameters
 //! - [`ToolChoice`] - Configuration for tool selection behavior
-//! - [`ThinkingConfig`] - Thinking configuration (adaptive / disabled / legacy budget)
+//! - [`ThinkingConfig`] - Thinking configuration (adaptive / between-tools / disabled / legacy budget)
 //! - [`OutputConfig`] - Effort, structured outputs, and task budgets
 //! - [`Effort`] - Reasoning-depth and token-spend control
 //! - [`Fallbacks`] - Server-side refusal fallbacks (beta)
@@ -21,7 +21,7 @@
 //! Optional:
 //! - `system` - System prompt
 //! - `temperature`, `top_p`, `top_k` - Sampling parameters (**rejected** on
-//!   Opus 4.7 and later, Claude Opus 5, Claude Sonnet 5, and Claude Fable 5)
+//!   Opus 4.7 and later and current Claude 5.x models)
 //! - `stop_sequences` - Custom stop sequences
 //! - `tools` - Available tools for function calling
 //! - `stream` - Enable streaming responses
@@ -68,8 +68,7 @@ pub struct Body {
 
     /// Sampling temperature (0.0 to 1.0)
     ///
-    /// Rejected with a `400` on Opus 4.7 and later, Claude Opus 5,
-    /// Claude Sonnet 5, Claude Fable 5, and Claude Mythos 5.
+    /// Rejected with a `400` on Opus 4.7 and later and current Claude 5.x models.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature: Option<f32>,
 
@@ -181,8 +180,11 @@ pub enum ThinkingDisplay {
 ///
 /// - [`ThinkingConfig::Adaptive`] — **recommended**. Claude decides when and
 ///   how much to think. Combine with [`Effort`] to control depth.
+/// - [`ThinkingConfig::BetweenTools`] — turn thinking off between tool calls.
+///   Supported only by Claude Sonnet 5.5 and only through effort `high`.
 /// - [`ThinkingConfig::Disabled`] — turn thinking off. Rejected on Claude
-///   Fable 5 and Claude Mythos 5, and on Claude Opus 5 at effort `xhigh`/`max`.
+///   Fable 5/5.1, Claude Mythos 5/5.1, Claude Opus 5.5, and Claude Sonnet 5.5;
+///   also rejected on Claude Opus 5 and Haiku 5.5 at effort `xhigh`/`max`.
 /// - [`ThinkingConfig::Enabled`] — **legacy**. A fixed token budget. Rejected
 ///   with a `400` on Opus 4.7 and later, Claude Opus 5, Claude Sonnet 5, and
 ///   Claude Fable 5. Kept for models that still accept it.
@@ -209,8 +211,7 @@ pub enum ThinkingDisplay {
 pub enum ThinkingConfig {
     /// Legacy extended thinking with a fixed token budget
     ///
-    /// Rejected on Opus 4.7 and later, Claude Opus 5, Claude Sonnet 5,
-    /// Claude Fable 5, and Claude Mythos 5. Use
+    /// Rejected on Opus 4.7 and later and current Claude 5.x models. Use
     /// [`ThinkingConfig::Adaptive`] with [`Effort`] instead.
     #[serde(rename = "enabled")]
     Enabled {
@@ -226,6 +227,10 @@ pub enum ThinkingConfig {
         display: Option<ThinkingDisplay>,
     },
 
+    /// Thinking turned off between tool calls (Claude Sonnet 5.5 only)
+    #[serde(rename = "between_tools")]
+    BetweenTools,
+
     /// Thinking turned off
     #[serde(rename = "disabled")]
     Disabled,
@@ -235,7 +240,7 @@ impl ThinkingConfig {
     /// Create a legacy fixed-budget thinking configuration
     ///
     /// Prefer [`ThinkingConfig::adaptive`] — this form is rejected on Opus 4.7
-    /// and later, Claude Opus 5, Claude Sonnet 5, and Claude Fable 5.
+    /// and later and current Claude 5.x models.
     ///
     /// # Arguments
     ///
@@ -291,7 +296,8 @@ impl ThinkingConfig {
 /// Reasoning-depth and token-spend control
 ///
 /// Passed inside [`OutputConfig`], not at the top level of the request. The
-/// API default is [`Effort::High`].
+/// The API default depends on the model: `medium` for Claude Opus 5.5 and
+/// Haiku 5.5, and [`Effort::High`] for Claude Opus 5.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum Effort {
@@ -301,7 +307,7 @@ pub enum Effort {
     /// Cost-sensitive workloads that trade some intelligence for fewer tokens
     Medium,
 
-    /// The API default; balances token usage and intelligence
+    /// The API default for Claude Opus 5; balances token usage and intelligence
     #[default]
     High,
 
@@ -562,6 +568,7 @@ impl Body {
         }
 
         self.validate_sampling_params()?;
+        self.validate_tool_choice()?;
         self.validate_thinking()?;
         self.validate_output_config()?;
         self.validate_prefill()?;
@@ -637,11 +644,34 @@ impl Body {
                     )));
                 }
             }
+            ThinkingConfig::BetweenTools => {
+                if self.model.is_known() && !self.model.supports_between_tools_thinking() {
+                    return Err(AnthropicToolError::InvalidParameter(format!(
+                        "model {} does not support between-tools thinking",
+                        self.model
+                    )));
+                }
+                if matches!(self.effort(), Some(Effort::XHigh | Effort::Max)) {
+                    return Err(AnthropicToolError::InvalidParameter(format!(
+                        "model {} does not allow between-tools thinking at effort {:?}; \
+                         lower the effort to \"high\" or below",
+                        self.model,
+                        self.effort().unwrap_or_default()
+                    )));
+                }
+            }
             ThinkingConfig::Disabled => {
                 if self.model.is_known() && self.model.thinking_always_on() {
                     return Err(AnthropicToolError::InvalidParameter(format!(
                         "model {} always thinks; omit the thinking field \
                          instead of disabling it",
+                        self.model
+                    )));
+                }
+                if self.model.is_known() && !self.model.supports_disabled_thinking() {
+                    return Err(AnthropicToolError::InvalidParameter(format!(
+                        "model {} does not support disabled thinking; \
+                         use between_tools instead",
                         self.model
                     )));
                 }
@@ -654,6 +684,23 @@ impl Body {
                     )));
                 }
             }
+        }
+
+        Ok(())
+    }
+
+    fn validate_tool_choice(&self) -> Result<()> {
+        let is_forced = matches!(
+            self.tool_choice.as_ref(),
+            Some(ToolChoice::Any | ToolChoice::Tool { .. })
+        );
+
+        if is_forced && self.model.is_known() && !self.model.supports_forced_tool_choice() {
+            return Err(AnthropicToolError::InvalidParameter(format!(
+                "model {} does not support forced tool choice; \
+                 use tool_choice auto or none instead",
+                self.model
+            )));
         }
 
         Ok(())
@@ -800,6 +847,12 @@ mod tests {
     }
 
     #[test]
+    fn test_thinking_between_tools_serialize() {
+        let json = serde_json::to_string(&ThinkingConfig::BetweenTools).unwrap();
+        assert_eq!(json, r#"{"type":"between_tools"}"#);
+    }
+
+    #[test]
     fn test_thinking_config_serialize() {
         let config = ThinkingConfig::enabled(10000);
         let json = serde_json::to_string(&config).unwrap();
@@ -882,6 +935,138 @@ mod tests {
         // Allowed at "high"
         body.output_config = Some(OutputConfig::new().with_effort(Effort::High));
         assert!(body.validate().is_ok());
+    }
+
+    #[test]
+    fn test_disabled_thinking_rejected_on_opus55_at_every_effort() {
+        for effort in [
+            Effort::Low,
+            Effort::Medium,
+            Effort::High,
+            Effort::XHigh,
+            Effort::Max,
+        ] {
+            let mut body = Body::new(Model::Opus55, 16_000);
+            body.thinking = Some(ThinkingConfig::disabled());
+            body.output_config = Some(OutputConfig::new().with_effort(effort));
+            body.messages.push(Message::user("Test"));
+            assert!(body.validate().is_err(), "{effort:?}");
+        }
+
+        let mut sonnet = Body::new(Model::Sonnet55, 16_000);
+        sonnet.thinking = Some(ThinkingConfig::disabled());
+        sonnet.messages.push(Message::user("Test"));
+        let err = sonnet.validate().unwrap_err();
+        assert!(err.to_string().contains("use between_tools"));
+    }
+
+    #[test]
+    fn test_disabled_thinking_on_haiku55_is_capped_at_high() {
+        for effort in [Effort::Low, Effort::Medium, Effort::High] {
+            let mut body = Body::new(Model::Haiku55, 16_000);
+            body.thinking = Some(ThinkingConfig::disabled());
+            body.output_config = Some(OutputConfig::new().with_effort(effort));
+            body.messages.push(Message::user("Test"));
+            assert!(body.validate().is_ok(), "{effort:?}");
+        }
+
+        for effort in [Effort::XHigh, Effort::Max] {
+            let mut body = Body::new(Model::Haiku55, 16_000);
+            body.thinking = Some(ThinkingConfig::disabled());
+            body.output_config = Some(OutputConfig::new().with_effort(effort));
+            body.messages.push(Message::user("Test"));
+            assert!(body.validate().is_err(), "{effort:?}");
+        }
+    }
+
+    #[test]
+    fn test_between_tools_thinking_model_validation() {
+        let mut supported = Body::new(Model::Sonnet55, 16_000);
+        supported.thinking = Some(ThinkingConfig::BetweenTools);
+        supported.messages.push(Message::user("Test"));
+        assert!(supported.validate().is_ok());
+
+        let mut unsupported = Body::new(Model::Haiku55, 16_000);
+        unsupported.thinking = Some(ThinkingConfig::BetweenTools);
+        unsupported.messages.push(Message::user("Test"));
+        let err = unsupported.validate().unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("does not support between-tools thinking")
+        );
+    }
+
+    #[test]
+    fn test_between_tools_thinking_effort_validation() {
+        for effort in [Effort::Low, Effort::Medium, Effort::High] {
+            let mut body = Body::new(Model::Sonnet55, 16_000);
+            body.thinking = Some(ThinkingConfig::BetweenTools);
+            body.output_config = Some(OutputConfig::new().with_effort(effort));
+            body.messages.push(Message::user("Test"));
+            assert!(body.validate().is_ok(), "{effort:?}");
+        }
+
+        for effort in [Effort::XHigh, Effort::Max] {
+            let mut body = Body::new(Model::Sonnet55, 16_000);
+            body.thinking = Some(ThinkingConfig::BetweenTools);
+            body.output_config = Some(OutputConfig::new().with_effort(effort));
+            body.messages.push(Message::user("Test"));
+            let err = body.validate().unwrap_err();
+            assert!(
+                err.to_string()
+                    .contains("does not allow between-tools thinking")
+            );
+        }
+    }
+
+    #[test]
+    fn test_forced_tool_choice_rejected_on_new_models() {
+        for model in [
+            Model::Fable51,
+            Model::Mythos51,
+            Model::Opus55,
+            Model::Sonnet55,
+        ] {
+            for tool_choice in [
+                ToolChoice::Any,
+                ToolChoice::Tool {
+                    name: "search".to_string(),
+                },
+            ] {
+                let mut body = Body::new(model.clone(), 1024);
+                body.tool_choice = Some(tool_choice);
+                body.messages.push(Message::user("Test"));
+                let err = body.validate().unwrap_err();
+                assert!(
+                    err.to_string()
+                        .contains("does not support forced tool choice")
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_non_forced_tool_choice_and_supported_models_are_allowed() {
+        for tool_choice in [ToolChoice::Auto, ToolChoice::None] {
+            let mut body = Body::new(Model::Opus55, 1024);
+            body.tool_choice = Some(tool_choice);
+            body.messages.push(Message::user("Test"));
+            assert!(body.validate().is_ok());
+        }
+
+        for model in [Model::Haiku55, Model::Sonnet5] {
+            for tool_choice in [
+                ToolChoice::Any,
+                ToolChoice::Tool {
+                    name: "search".to_string(),
+                },
+            ] {
+                let mut body = Body::new(model.clone(), 1024);
+                body.tool_choice = Some(tool_choice);
+                body.messages.push(Message::user("Test"));
+                assert!(body.validate().is_ok());
+            }
+        }
     }
 
     #[test]

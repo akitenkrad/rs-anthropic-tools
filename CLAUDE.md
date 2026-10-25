@@ -63,15 +63,15 @@ cargo doc --open
    ```rust
    let mut client = Messages::new();
    // Using Model enum (recommended)
-   client.model(Model::Opus5).max_tokens(1024).user("Hello");
+   client.model(Model::Opus55).max_tokens(1024).user("Hello");
    // Or using string (backward compatible)
-   client.model("claude-sonnet-5").max_tokens(1024).user("Hello");
+   client.model("claude-sonnet-5-5").max_tokens(1024).user("Hello");
    ```
 
    With adaptive thinking and effort:
    ```rust
    client
-       .model(Model::Opus5)
+       .model(Model::Opus55)
        .max_tokens(64000)
        .thinking_summarized()
        .effort(Effort::XHigh)
@@ -79,22 +79,25 @@ cargo doc --open
    ```
 
 2. **Model Enum**: Type-safe model selection with `Model` enum:
+   - `Model::Fable51`, `Model::Mythos51`, `Model::Opus55`, `Model::Sonnet55`, `Model::Haiku55` - Claude 5.1/5.5 family
    - `Model::Fable5`, `Model::Mythos5`, `Model::Opus5`, `Model::Sonnet5` - Claude 5 family
    - `Model::Opus48`, `Model::Opus47`, `Model::Opus46`, `Model::Sonnet46`, `Model::Haiku45` - Claude 4.x family
-   - `Model::Opus45`, `Model::Sonnet45` - legacy, still served
+   - `Model::Opus45` - legacy, still served; `Model::Sonnet45` - deprecated, retires 2026-11-30
    - `Model::Opus4`, `Model::Sonnet4`, `Model::Opus3`, `Model::Sonnet3`, `Model::Haiku3` - **retired**, kept only for backward compatibility (return 404)
    - `Model::Other(String)` - Custom/future models
-   - Default: `Model::Opus5`
+   - Default: `Model::Opus55`
+   - Default effort: `medium` for Opus 5.5 and Haiku 5.5; Opus 5 remains `high`
 
 3. **Model-aware Validation**: `Model` exposes the per-model API constraints
-   (`supports_adaptive_thinking()`, `supports_budget_tokens()`,
-   `supports_sampling_params()`, `supports_effort_level()`, `supports_prefill()`,
-   `is_retired()`, …), and `Body::validate()` enforces them so that requests
+   (`supports_adaptive_thinking()`, `supports_between_tools_thinking()`,
+   `supports_budget_tokens()`, `supports_sampling_params()`,
+   `supports_effort_level()`, `supports_prefill()`,
+   `supports_forced_tool_choice()`, `is_retired()`, …), and `Body::validate()` enforces them so that requests
    which would return a `400` fail locally instead. When adding a model variant,
    update every capability method in `model.rs` — they are exhaustive matches or
    explicit variant lists, not defaults.
 
-4. **Tagged Union Serialization**: `ContentBlock` uses `#[serde(tag = "type")]` for Anthropic API compliance, plus `#[serde(other)]` on `Unknown` so unrecognized block types do not fail deserialization. `StopReason` and `Model` hand-roll `Serialize`/`Deserialize` with an `Other(String)` fallback for the same reason.
+4. **Tagged Union Serialization**: `ContentBlock` and `ThinkingConfig` use `#[serde(tag = "type")]` for Anthropic API compliance. `ThinkingConfig::BetweenTools` serializes as only `{"type":"between_tools"}` and is supported only by Sonnet 5.5 (not at `xhigh` or `max`). `ContentBlock` uses `#[serde(other)]` on `Unknown` so unrecognized block types do not fail deserialization. `StopReason` and `Model` hand-roll `Serialize`/`Deserialize` with an `Other(String)` fallback for the same reason.
 
 5. **Non-exhaustive Enums**: `Model`, `ContentBlock`, `ThinkingConfig`, `StopReason`, `TaskBudget`, `OutputFormat`, and `Fallbacks` are `#[non_exhaustive]` so new API values can be added without a breaking release.
 

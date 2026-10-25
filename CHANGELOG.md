@@ -5,6 +5,55 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-10-25
+
+### ⚠️ Behavioral changes
+
+- **The default model changed from `Model::Opus5` to `Model::Opus55`.** Opus 5.5
+  defaults to `medium` effort; Opus 5 continues to default to `high`.
+- `Body::validate()` now rejects forced `tool_choice` values (`any` or a named
+  tool) for Fable 5.1, Mythos 5.1, Opus 5.5, and Sonnet 5.5. `auto` and `none`
+  remain available, and Haiku 5.5 and older models still accept forced choices.
+- Sonnet 5.5 does not accept `thinking: disabled`; use its new
+  `thinking: between_tools` mode instead. `between_tools` is rejected for every
+  other known model and at effort `xhigh` or `max`.
+- Fable 5.1, Mythos 5.1, and Opus 5.5 always have thinking enabled. Haiku 5.5
+  accepts `thinking: disabled` only at effort `high` or below.
+
+### Added
+
+#### Models
+
+- Claude Fable 5.1 (`Model::Fable51`, `claude-fable-5-1`) and the
+  Project Glasswing-only Claude Mythos 5.1 (`Model::Mythos51`,
+  `claude-mythos-5-1`), with the same capabilities
+- Claude Opus 5.5 (`Model::Opus55`, `claude-opus-5-5`), Claude Sonnet 5.5
+  (`Model::Sonnet55`, `claude-sonnet-5-5`), and Claude Haiku 5.5
+  (`Model::Haiku55`, `claude-haiku-5-5`)
+- All five models have a 1M-token context window, a 128K-token maximum output,
+  adaptive thinking, and every effort level from `low` through `max`. They do
+  not accept budget-token thinking, sampling parameters, or assistant prefills.
+- Pricing per MTok: Fable 5.1 $10/$50, Opus 5.5 $4/$20, Sonnet 5.5 $2/$10,
+  and Haiku 5.5 $0.10/$0.50 for input/output tokens. Haiku 5.5 requests over
+  100K tokens are $0.50/$2.50 per MTok.
+
+#### Thinking and validation
+
+- `ThinkingConfig::BetweenTools`, serialized as
+  `{"type":"between_tools"}`, for turning off thinking on Sonnet 5.5
+- `Model::supports_between_tools_thinking()` and
+  `Model::supports_forced_tool_choice()` capability queries
+
+### Changed
+
+- Retired-model replacements now point Opus 4/3 to Opus 5.5, Sonnet 4/3 to
+  Sonnet 5.5, and Haiku 3 to Haiku 5.5.
+
+### Deprecated
+
+- `Model::Sonnet45` remains available, but is deprecated and retires on
+  2026-11-30.
+
 ## [1.1.0] - 2026-08-15
 
 This release brings the library up to the current Anthropic API. The previous

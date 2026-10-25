@@ -11,7 +11,7 @@ A Rust library for interacting with the Anthropic API.
 ## Features
 
 - **Messages API** - Builder pattern for creating and sending messages
-- **Type-safe Model Selection** - `Model` enum covering the Claude 5 and 4.x families
+- **Type-safe Model Selection** - `Model` enum covering the Claude 5.1, 5.5, 5, and 4.x families
 - **Adaptive Thinking & Effort** - Current-generation reasoning control
 - **Structured Outputs** - Constrain responses to a JSON Schema
 - **Tool/Function Calling** - Define and use tools with JSON Schema
@@ -30,7 +30,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-anthropic-tools = "1.1"
+anthropic-tools = "1.2"
 ```
 
 ## Quick Start
@@ -56,7 +56,7 @@ use anthropic_tools::prelude::*;
 async fn main() -> Result<()> {
     let mut client = Messages::new();
     client
-        .model(Model::Opus5)  // Type-safe model selection
+        .model(Model::Opus55)  // Type-safe model selection; also the default
         .max_tokens(1024)
         .system("You are a helpful assistant.")
         .user("Hello, how are you?");
@@ -86,10 +86,10 @@ use anthropic_tools::prelude::*;
 async fn main() -> Result<()> {
     let mut client = Messages::new();
     client
-        .model(Model::Opus5)
+        .model(Model::Opus55)
         .max_tokens(64000)
         .thinking_summarized()   // adaptive thinking + readable summary
-        .effort(Effort::XHigh)   // low | medium | high | xhigh | max
+        .effort(Effort::XHigh)   // low | medium | high | xhigh | max; default: medium
         .user("Solve this complex problem step by step...");
 
     let response = client.post().await?;
@@ -122,7 +122,7 @@ struct Contact {
 async fn main() -> Result<()> {
     let mut client = Messages::new();
     client
-        .model(Model::Opus5)
+        .model(Model::Opus55)
         .max_tokens(1024)
         .json_schema(json!({
             "type": "object",
@@ -158,7 +158,7 @@ async fn main() -> Result<()> {
     // Create client with tool
     let mut client = Messages::new();
     client
-        .model(Model::Opus5)
+        .model(Model::Opus55)
         .max_tokens(1024)
         .tools(vec![tool.to_value()])
         .user("What's the weather in Tokyo?");
@@ -186,7 +186,7 @@ use anthropic_tools::prelude::*;
 async fn main() -> Result<()> {
     let mut client = Messages::new();
     client
-        .model(Model::Opus5)
+        .model(Model::Opus55)
         .max_tokens(1024)
         .user_with_image_url(
             "Describe this image",
@@ -213,7 +213,7 @@ async fn main() -> Result<()> {
 
     let mut client = Messages::new();
     client
-        .model(Model::Opus5)
+        .model(Model::Opus55)
         .max_tokens(4096)
         .beta(FILES_API_BETA)
         .add_message(Message::new(
@@ -241,7 +241,7 @@ use anthropic_tools::prelude::*;
 async fn main() -> Result<()> {
     let mut client = Messages::new();
     client
-        .model(Model::Opus5)
+        .model(Model::Opus55)
         .max_tokens(1024)
         .user("Hello!");
 
@@ -262,7 +262,7 @@ use anthropic_tools::prelude::*;
 async fn main() -> Result<()> {
     let mut client = Messages::new();
     client
-        .model(Model::Opus5)
+        .model(Model::Opus55)
         .max_tokens(1024)
         .fallbacks(Fallbacks::auto())  // beta header added automatically
         .user("Hello");
@@ -281,10 +281,17 @@ async fn main() -> Result<()> {
 ```rust
 use anthropic_tools::prelude::Model;
 
+// Claude 5.1 / 5.5 Family
+Model::Fable51  // claude-fable-5-1   (most capable; thinking always on)
+Model::Mythos51 // claude-mythos-5-1  (Fable 5.1 capability; Project Glasswing only)
+Model::Opus55   // claude-opus-5-5    (default; thinking always on; effort default: medium)
+Model::Sonnet55 // claude-sonnet-5-5  (supports thinking: between_tools)
+Model::Haiku55  // claude-haiku-5-5   (effort default: medium)
+
 // Claude 5 Family
 Model::Fable5   // claude-fable-5   (thinking always on)
 Model::Mythos5  // claude-mythos-5  (Project Glasswing only)
-Model::Opus5    // claude-opus-5    (default)
+Model::Opus5    // claude-opus-5    (effort default: high)
 Model::Sonnet5  // claude-sonnet-5
 
 // Claude 4.x Family
@@ -296,7 +303,7 @@ Model::Haiku45  // claude-haiku-4-5
 
 // Legacy (still served)
 Model::Opus45   // claude-opus-4-5
-Model::Sonnet45 // claude-sonnet-4-5
+Model::Sonnet45 // claude-sonnet-4-5 (deprecated; retires 2026-11-30)
 
 // Retired — kept for backward compatibility, these return 404
 Model::Opus4    // claude-opus-4-20250514      (retired 2026-06-15)
@@ -312,6 +319,10 @@ Model::Other("custom-model".to_string())
 Use `Model::is_retired()` to detect retired variants and `Model::replacement()`
 to get the recommended successor.
 
+Pricing per MTok is $10/$50 for Fable 5.1, $4/$20 for Opus 5.5, $2/$10 for
+Sonnet 5.5, and $0.10/$0.50 for Haiku 5.5 input/output tokens. Haiku 5.5
+requests over 100K tokens cost $0.50/$2.50 per MTok.
+
 ### Model Capabilities
 
 The `Model` enum exposes the per-model API constraints, and `Body::validate()`
@@ -320,6 +331,7 @@ enforces them before the request is sent:
 | Method | Meaning |
 |--------|---------|
 | `supports_adaptive_thinking()` | Accepts `thinking: {"type": "adaptive"}` |
+| `supports_between_tools_thinking()` | Accepts `thinking: {"type": "between_tools"}` |
 | `supports_budget_tokens()` | Accepts the legacy fixed thinking budget |
 | `supports_disabled_thinking()` | Accepts `thinking: {"type": "disabled"}` |
 | `allows_disabled_thinking_at(effort)` | Disabled thinking is allowed at that effort |
@@ -327,12 +339,16 @@ enforces them before the request is sent:
 | `supports_sampling_params()` | Accepts `temperature` / `top_p` / `top_k` |
 | `supports_effort()` / `supports_effort_level(e)` | Effort support, per level |
 | `supports_prefill()` | Accepts an assistant-turn prefill |
+| `supports_forced_tool_choice()` | Accepts forced `any` or named-tool choices |
 | `context_window()` / `max_output_tokens()` | Token limits |
 | `is_retired()` / `replacement()` | Retirement status and successor |
 
-Requests that would return a `400` — `budget_tokens` on Claude Opus 5, a
-`temperature` on Claude Sonnet 5, an assistant prefill on Opus 4.6+ — fail
-locally with an `InvalidParameter` error instead of a round trip.
+Requests that would return a `400` — `budget_tokens` on Claude Opus 5.5,
+`between_tools` thinking on a model other than Sonnet 5.5, forced tool choice
+on Fable 5.1, Mythos 5.1, Opus 5.5, or Sonnet 5.5, and an assistant prefill on
+Opus 4.6+ — fail locally with an `InvalidParameter` error instead of a round
+trip. Sonnet 5.5 uses `between_tools` to turn thinking off; `disabled` is not
+accepted. Haiku 5.5 accepts `disabled` only at effort `high` or below.
 
 ## Environment Variables
 
@@ -367,9 +383,10 @@ anthropic-tools
 
 ## Upgrading
 
-See [CHANGELOG.md](./CHANGELOG.md). The 1.0 → 1.1 upgrade is source-compatible
+See [CHANGELOG.md](./CHANGELOG.md). The 1.1 → 1.2 upgrade is source-compatible
 for typical usage, but note that **the default model changed from
-`Model::Sonnet4` (retired) to `Model::Opus5`**.
+`Model::Opus5` to `Model::Opus55`**. Opus 5.5 defaults to `medium` effort,
+whereas Opus 5 defaults to `high`.
 
 ## License
 

@@ -15,6 +15,18 @@
 //! - Files API
 //! - SSE streaming
 //!
+//! ## Models
+//!
+//! The current family is
+//! [`Model::Fable51`](crate::messages::request::model::Model::Fable51),
+//! [`Model::Mythos51`](crate::messages::request::model::Model::Mythos51),
+//! [`Model::Opus55`](crate::messages::request::model::Model::Opus55),
+//! [`Model::Sonnet55`](crate::messages::request::model::Model::Sonnet55), and
+//! [`Model::Haiku55`](crate::messages::request::model::Model::Haiku55).
+//! `Model::Opus55` is the default model. Its default effort is `medium`, as is
+//! `Model::Haiku55`'s; the earlier `Model::Opus5` defaults to `high`.
+//! `Model::Sonnet45` is deprecated and retires on 2026-11-30.
+//!
 //! ## Configuration
 //!
 //! Set the API key via environment variable or `.env` file:
@@ -38,7 +50,7 @@
 //! async fn main() -> Result<()> {
 //!     let mut client = Messages::new();
 //!     client
-//!         .model(Model::Opus5)  // Type-safe model selection
+//!         .model(Model::Opus55)  // Type-safe model selection; also the default
 //!         .max_tokens(1024)
 //!         .system("You are a helpful assistant.")
 //!         .user("Hello, how are you?");
@@ -142,7 +154,7 @@ mod tests {
         let model = &client.body().model;
         assert_eq!(model, &Model::Sonnet4);
         assert!(model.is_retired());
-        assert_eq!(model.replacement(), Some(Model::Sonnet5));
+        assert_eq!(model.replacement(), Some(Model::Sonnet55));
     }
 
     #[test]
